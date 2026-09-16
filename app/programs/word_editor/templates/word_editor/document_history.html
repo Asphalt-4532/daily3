@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}History — {{ doc.doc_no or doc.subject }}{% endblock %}
+{% block content %}
+{% if flash %}<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+  <div>
+    <h2 style="margin:0;">Version history</h2>
+    <span class="muted small">{{ doc.doc_no or 'Draft' }} — {{ doc.subject or doc.title }}</span>
+  </div>
+  <a class="btn ghost small" href="/word-editor/documents/{{ doc.id }}">← Back to document</a>
+</div>
+<div class="table-wrap card" style="padding:0;">
+  <table>
+    <tr><th>Version</th><th>When</th><th>By</th><th>Note</th><th>Fingerprint</th><th>Actions</th></tr>
+    {% for v in versions %}
+    <tr>
+      <td>v{{ v.version_no }}{% if v.is_snapshot %} <span class="badge" style="background:#dcfce7;color:#166534;">snapshot</span>{% endif %}</td>
+      <td>{{ v.created_at[:16] }}</td>
+      <td>{{ v.edited_by_name }}</td>
+      <td>{{ v.note or '—' }}</td>
+      <td><code style="font-size:11px;">{{ v.content_sha[:16] }}</code></td>
+      <td style="white-space:nowrap;">
+        <a class="btn ghost small" href="/word-editor/documents/{{ doc.id }}/history/{{ v.version_no }}">View</a>
+        {% if doc.status == 'draft' and not loop.first %}
+        <form method="post" action="/word-editor/documents/{{ doc.id }}/history/{{ v.version_no }}/restore" style="display:inline;"
+              onsubmit="return confirm('Restore v{{ v.version_no }}? The current body is kept as its own version.')">
+          {{ csrf_input(request) | safe }}
+          <button class="btn secondary small" type="submit">Restore</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No versions recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

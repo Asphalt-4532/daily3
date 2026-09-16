@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}{{ asset.asset_tag }} · Assets · {{ COMPANY_NAME }}{% endblock %}
+{% block content %}
+
+{# ── Header ─────────────────────────────────────────────────────────────── #}
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+  <div>
+    <h2 style="margin:0;">{{ asset.asset_tag }} — {{ asset.name }}</h2>
+    <p class="muted" style="margin:2px 0 0;">
+      {{ asset.category }}
+      {% if asset.serial_number %} · SN {{ asset.serial_number }}{% endif %}
+      {% if asset.cost_center_name %} · {{ asset.cost_center_name }}{% endif %}
+      <span class="chip {{ 'ok' if asset.status == 'active' else 'warn' if asset.status == 'in_maintenance' else 'bad' }}">
+        {{ asset.status.replace('_',' ').title() }}
+      </span>
+    </p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+    {% if can_manage %}
+    <a class="btn small secondary" href="/assets/{{ asset.id }}/edit">Edit</a>
+    {% endif %}
+    <a class="btn small secondary" href="/assets/{{ asset.id }}/report/pdf{% if filters.date_from %}?date_from={{ filters.date_from }}&date_to={{ filters.date_to }}{% endif %}">PDF</a>
+    <a class="btn small secondary" href="/assets/{{ asset.id }}/report/xlsx{% if filters.date_from %}?date_from={{ filters.date_from }}&date_to={{ filters.date_to }}{% endif %}">Excel</a>
+    <a class="btn small secondary" href="/assets/">← All assets</a>
+  </div>
+</div>
+
+{# Fuel banner for trucks #}
+{% if asset.category == 'Fleet/Truck' %}
+<div class="alert warn" style="font-size:13px; margin-bottom:12px;">
+  ⚠ Fuel is tracked as a general operating cost, not against this asset. Fuel filled via the chip system is not included in the TCO below.
+</div>
+{% endif %}
+
+{# ── TCO summary ─────────────────────────────────────────────────────────── #}
+<div class="grid grid-3" style="margin-bottom:12px;">
+  <div class="card stat">
+    <div class="stat-label">Purchase cost</div>
+    <div class="stat-value">{{ asset.purchase_cost | money }}</div>
+    {% if asset.purchase_date %}<div class="stat-sub">{{ asset.purchase_date }}</div>{% endif %}
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Maintenance (approved)</div>
+    <div class="stat-value">{{ asset.maintenance_total | money }}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Total Cost of Ownership</div>
+    <div class="stat-value"><strong>{{ asset.tco | money }}</strong></div>
+    {% if asset.last_service_date %}<div class="stat-sub">Last service: {{ asset.last_service_date }}</div>{% endif %}
+  </div>
+</div>
+
+{# ── Current holders ─────────────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:12px;">
+  <h3 class="mt-0">Current holders ({{ holders | length }})</h3>
+  {% if holders %}
+  <table>
+    <tr><th>Name / Dept</th><th>Role</th><th>Since</th><th>Assignment</th>
+      {% if can_assign %}<th></th>{% endif %}
+    </tr>
+    {% for h in holders %}
+    <tr>
+      <td>{{ h.employee_name or h.cost_center_name or '—' }}</td>
+      <td class="muted small">{{ h.role_note or '—' }}</td>
+      <td class="muted small">{{ h.issued_date }}</td>
+      <td class="muted small">#{{ h.id }}</td>
+      {% if can_assign %}
+      <td>
+        {# Transfer #}
+        <button class="btn small secondary" onclick="showTransfer({{ h.id }}, '{{ h.employee_name or h.cost_center_name }}')">Transfer</button>
+        {# Close #}
+        <form method="post" action="/assets/assignments/{{ h.id }}/close" style="display:inline;">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="returned_date" value="{{ '' }}">
+          <input type="hidden" name="reason" value="">
+          <button class="btn small secondary" type="button"
+                  onclick="quickClose({{ h.id }}, '{{ h.employee_name or h.cost_center_name }}')">Return</button>
+        </form>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Unassigned.</p>
+  {% endif %}
+
+  {% if can_assign and asset.status not in ('divested','deleted') %}
+  <details style="margin-top:12px;">
+    <summary class="btn small secondary" style="cursor:pointer; display:inline-block;">+ Assign to someone</summary>
+    <div style="margin-top:8px; padding:12px; background:var(--paper); border-radius:var(--radius);">
+      <form method="post" action="/assets/{{ asset.id }}/assign">
+        {{ csrf_input(request) | safe }}
+        <div class="row">
+          <div>
+            <label>Employee</label>
+            <select name="employee_id">
+              <option value="">— none —</option>
+              {% for cc in cost_centers %}{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Cost centre (if no employee)</label>
+            <select name="cost_center_id">
+              <option value="">— none —</option>
+              {% for cc in cost_centers %}
+              <option value="{{ cc.id }}">{{ cc.code }} — {{ cc.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div><label>Role note (Day shift, Primary driver…)</label>
+            <input type="text" name="role_note" placeholder="optional"></div>
+          <div><label>Issue date <span class="bad">*</span></label>
+            <input type="date" name="issued_date" required></div>
+        </div>
+        <button class="btn small" style="margin-top:8px;" type="submit">Assign</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  {% if can_divest and asset.status not in ('divested','deleted') %}
+  <details style="margin-top:8px;">
+    <summary class="btn small danger" style="cursor:pointer; display:inline-block;">Divest / retire</summary>
+    <div style="margin-top:8px; padding:12px; background:var(--paper); border-radius:var(--radius);">
+      <form method="post" action="/assets/{{ asset.id }}/divest">
+        {{ csrf_input(request) | safe }}
+        <div class="row">
+          <div><label>Divest date <span class="bad">*</span></label>
+            <input type="date" name="divest_date" required></div>
+          <div><label>Proceeds (optional)</label>
+            <input type="number" step="0.01" min="0" name="settle_amount" placeholder="0.00"></div>
+        </div>
+        <div style="margin-top:8px;">
+          <label>Reason <span class="bad">*</span></label>
+          <input type="text" name="reason" required placeholder="Sold to Al-Faisal Trading / Scrapped">
+        </div>
+        <button class="btn small danger" style="margin-top:8px;" type="submit">Divest</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  {% if can_manage and asset.status not in ('divested','deleted') %}
+  <details style="margin-top:8px;">
+    <summary class="btn small secondary" style="cursor:pointer; display:inline-block;">Change status</summary>
+    <div style="margin-top:8px; padding:12px; background:var(--paper); border-radius:var(--radius);">
+      <form method="post" action="/assets/{{ asset.id }}/status" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+        {{ csrf_input(request) | safe }}
+        <div><label>Status</label>
+          <select name="status">
+            <option value="active" {{ 'selected' if asset.status == 'active' }}>Active</option>
+            <option value="in_maintenance" {{ 'selected' if asset.status == 'in_maintenance' }}>In maintenance</option>
+            <option value="retired" {{ 'selected' if asset.status == 'retired' }}>Retired</option>
+          </select>
+        </div>
+        <div><label>Note</label><input type="text" name="note" placeholder="optional"></div>
+        <button class="btn small" type="submit">Update</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+</div>
+
+{# ── Service log ─────────────────────────────────────────────────────────── #}
+<div class="card" id="service" style="margin-bottom:12px;">
+  <h3 class="mt-0">Service log</h3>
+
+  {% if can_log_service and asset.status not in ('divested','deleted') %}
+  <details style="margin-bottom:12px;">
+    <summary class="btn small" style="cursor:pointer; display:inline-block;">+ Add service note</summary>
+    <div style="margin-top:8px; padding:12px; background:var(--paper); border-radius:var(--radius);">
+      <form method="post" action="/assets/{{ asset.id }}/service/new" enctype="multipart/form-data">
+        {{ csrf_input(request) | safe }}
+        <div class="row">
+          <div><label>Date <span class="bad">*</span></label>
+            <input type="date" name="service_date" required></div>
+          <div><label>Type <span class="bad">*</span></label>
+            <select name="service_type">
+              {% for t in service_types %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label>Description <span class="bad">*</span></label>
+          <textarea name="description" rows="2" required placeholder="Greased chassis points / Fitted new spring bolt…"></textarea>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div><label>Parts used</label>
+            <input type="text" name="parts_used" placeholder="Spring bolt M8, grease tube…"></div>
+          <div>
+            <label>Meter reading</label>
+            <div style="display:flex; gap:4px;">
+              <input type="number" step="0.1" min="0" name="meter_reading" placeholder="142500" style="flex:1;">
+              <select name="meter_unit" style="width:90px;">
+                <option value="km">km</option>
+                <option value="hours">hours</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label>Photo (optional)</label>
+          <input type="file" name="photo" accept="image/*,.pdf">
+        </div>
+        <button class="btn small" style="margin-top:8px;" type="submit">Save note</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  {# Service entries from the timeline #}
+  {% set svc_events = events | selectattr('kind','equalto','service') | list %}
+  {% if not svc_events %}
+  <p class="muted">No service notes yet.</p>
+  {% else %}
+  <table>
+    <tr><th>Date</th><th>Type</th><th>Description</th><th>Parts</th><th>Meter</th><th>By</th><th>Photo</th><th></th></tr>
+    {% for ev in svc_events %}
+    <tr>
+      <td class="small">{{ ev.event_date }}</td>
+      <td class="small">{{ ev.detail.split(' · ')[0] if ev.detail else '—' }}</td>
+      <td>{{ ev.description }}</td>
+      <td class="small muted">{{ ev.detail.split('Parts: ')[1].split(' · ')[0] if ev.detail and 'Parts: ' in ev.detail else '—' }}</td>
+      <td class="small muted">{{ (ev.meter_reading | string + ' ' + (ev.meter_unit or '')) if ev.meter_reading else '—' }}</td>
+      <td class="small muted">{{ ev.recorded_by_name }}</td>
+      <td>
+        {% if ev.photo_path %}
+        <a href="/assets/service/photo/{{ ev.photo_path }}" target="_blank" class="small">📷</a>
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if can_log_service %}
+        <form method="post" action="/assets/service/{{ ev.reference }}/delete" style="display:inline;">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="reason" value="">
+          <button class="btn small secondary" type="button"
+                  onclick="confirmDelete(this, {{ ev.reference }})">Delete</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+{# ── Full timeline ────────────────────────────────────────────────────────── #}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h3 class="mt-0">Full timeline</h3>
+    <form method="get" action="/assets/{{ asset.id }}" style="display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap;">
+      <div><label style="font-size:12px;">From</label><input type="date" name="date_from" value="{{ filters.date_from }}" style="padding:3px 6px; font-size:12px;"></div>
+      <div><label style="font-size:12px;">To</label><input type="date" name="date_to" value="{{ filters.date_to }}" style="padding:3px 6px; font-size:12px;"></div>
+      <button class="btn small secondary" type="submit">Filter</button>
+      {% if filters.date_from or filters.date_to %}<a class="btn small secondary" href="/assets/{{ asset.id }}">Clear</a>{% endif %}
+    </form>
+  </div>
+
+  {% if not events %}
+  <p class="muted">No events in the selected range.</p>
+  {% else %}
+  <table>
+    <tr><th>Date</th><th>Kind</th><th>Description</th><th>Detail</th><th style="text-align:right;">Amount</th><th style="text-align:right;">VAT</th><th>Ref</th><th>By</th></tr>
+    {% for ev in events %}
+    <tr>
+      <td class="small">{{ ev.event_date }}</td>
+      <td class="small">
+        {% if ev.kind == 'registration' %}📦{% elif ev.kind == 'cost' %}💰{% elif ev.kind == 'service' %}🔧{% else %}📋{% endif %}
+        {{ ev.kind.title() }}
+      </td>
+      <td>{{ ev.description }}</td>
+      <td class="small muted">{{ ev.detail or '—' }}</td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums;">
+        {{ ev.amount | money if ev.amount is not none else '—' }}
+      </td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums;">
+        {{ ev.vat_amount | money if ev.vat_amount is not none else '—' }}
+      </td>
+      <td class="small muted">
+        {% if ev.kind == 'cost' and ev.reference %}
+        <a href="/expense-program/expenses/{{ ev.reference }}" target="_blank">{{ ev.reference }}</a>
+        {% else %}{{ ev.reference or '—' }}{% endif %}
+      </td>
+      <td class="small muted">{{ ev.recorded_by_name }}</td>
+    </tr>
+    {% endfor %}
+    <tr style="font-weight:600; border-top:2px solid var(--line-strong);">
+      <td colspan="4">Cost total (approved)</td>
+      <td style="text-align:right;" colspan="3">
+        {{ events | selectattr('amount') | map(attribute='amount') | sum | money }}
+      </td>
+      <td></td>
+    </tr>
+  </table>
+  {% endif %}
+</div>
+
+{% if can_manage and asset.status not in ('divested','deleted') %}
+<details style="margin-top:16px;">
+  <summary class="btn small danger" style="cursor:pointer; display:inline-block;">⚠ Delete this asset</summary>
+  <div style="margin-top:8px; padding:12px; background:var(--paper); border-radius:var(--radius); max-width:400px;">
+    <p class="muted small">Soft-delete only. The record and its full history are kept. You must first return all active assignments.</p>
+    <form method="post" action="/assets/{{ asset.id }}/delete">
+      {{ csrf_input(request) | safe }}
+      <label>Reason <span class="bad">*</span></label>
+      <input type="text" name="reason" required placeholder="Written off / Sold">
+      <button class="btn small danger" style="margin-top:8px;" type="submit">Delete asset</button>
+    </form>
+  </div>
+</details>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(btn, serviceId) {
+  const reason = prompt('Reason for deleting this service entry?');
+  if (!reason) return;
+  const form = btn.closest('form');
+  form.querySelector('[name="reason"]').value = reason;
+  form.submit();
+}
+function quickClose(assignmentId, holderName) {
+  const date = prompt('Return date (YYYY-MM-DD) for ' + holderName + '?');
+  if (!date) return;
+  const reason = prompt('Reason?');
+  if (!reason) return;
+  const form = document.querySelector('form[action="/assets/assignments/' + assignmentId + '/close"]');
+  form.querySelector('[name="returned_date"]').value = date;
+  form.querySelector('[name="reason"]').value = reason;
+  form.submit();
+}
+</script>
+{% endblock %}

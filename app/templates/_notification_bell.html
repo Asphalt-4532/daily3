@@ -1,0 +1,17 @@
+{# The Alerts control with its unread badge. Included by both top bars -
+   base.html (inside a program) and _standalone_header.html (the program
+   hub and coming-soon pages). One copy, because the hub is where people
+   land after login and the bell has to look and behave identically in
+   both places. Expects `request` in context; renders nothing for a
+   logged-out visitor because unread_notifications() returns 0.
+
+   This is a <label> for the notification centre's checkbox, not a link:
+   the panel is CSS-only so it works with JavaScript off, and a slide-over
+   beats a full page load for "what needs me right now". The full page is
+   still reachable from inside the panel, and remains the target for
+   anyone arriving at /notifications directly. #}
+{% set unread = unread_notifications(request) %}
+<label for="notif-panel" class="notif-bell {{ 'active' if request.url.path == '/notifications' }}"
+       title="Notifications" role="button" tabindex="0">
+  Alerts{% if unread %} <span class="notif-count">{{ unread }}</span>{% endif %}
+</label>

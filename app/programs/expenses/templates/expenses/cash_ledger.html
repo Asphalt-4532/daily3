@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-2">
+  <div class="card stat">
+    <div class="num {% if float_row.balance < 0 %}danger{% endif %}">{{ float_row.balance | money }}</div>
+    <div class="label">Current cash in box</div>
+    {% if float_row.balance < 0 %}
+    <div class="alert danger" style="margin-top:8px; font-size:13px;">Float is negative — replenishment needed.</div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3 class="mt-0">Top up / adjust float</h3>
+    <form method="post" action="/expense-program/cash/topup" style="margin-bottom:18px;">
+      {{ csrf_input(request) | safe }}
+      <label>Amount to add</label>
+      <input type="number" name="amount" step="0.01" min="0.01" required placeholder="e.g. 500.00">
+      <label style="margin-top:8px;">Note (optional)</label>
+      <input type="text" name="note" placeholder="e.g. Monthly imprest replenishment">
+      <div style="margin-top:10px;"><button class="btn" type="submit">Top up</button></div>
+    </form>
+    <details style="margin-top:4px;">
+      <summary class="muted" style="cursor:pointer; font-size:13px;">Manual corrective adjustment (±)</summary>
+      <form method="post" action="/expense-program/cash/adjust" style="margin-top:10px;">
+        {{ csrf_input(request) | safe }}
+        <label>Amount (positive = add, negative = deduct)</label>
+        <input type="number" name="amount" step="0.01" required placeholder="e.g. -25.00">
+        <label style="margin-top:8px;">Reason (required)</label>
+        <input type="text" name="note" required placeholder="e.g. Cash count discrepancy corrected">
+        <div style="margin-top:10px;"><button class="btn secondary" type="submit">Apply adjustment</button></div>
+      </form>
+    </details>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">Movement history (last 60)</h3>
+  <div class="table-wrap">
+  <table>
+    <tr>
+      <th>Date / Time</th><th>Type</th><th>Amount</th><th>Voucher</th><th>Note</th><th>By</th>
+    </tr>
+    {% for m in movements %}
+    <tr>
+      <td class="muted small">{{ m.created_at }}</td>
+      <td>
+        {% if m.movement_type == 'topup' %}<span class="badge approved">Top-up</span>
+        {% elif m.movement_type == 'voucher_approved' %}<span class="badge pending">Voucher paid</span>
+        {% elif m.movement_type == 'voucher_rejected' %}<span class="badge">Returned</span>
+        {% else %}<span class="badge secondary">Adjustment</span>{% endif %}
+      </td>
+      <td class="{% if m.amount < 0 %}danger{% else %}{% endif %}">{{ m.amount | money }}</td>
+      <td>{{ m.voucher_no or '—' }}</td>
+      <td class="muted small">{{ m.note }}</td>
+      <td class="muted small">{{ m.created_by_name }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No movements recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

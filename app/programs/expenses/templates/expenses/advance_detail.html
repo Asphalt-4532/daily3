@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set flash = flash_info %}
+{% if flash %}
+<div class="alert info" style="margin-bottom:14px;">{{ flash }}</div>
+{% endif %}
+
+<div style="display:flex; align-items:center; gap:.75rem; margin-bottom:1rem;">
+  <a class="btn small secondary" href="/expense-program/advances">← All advances</a>
+  <div>
+    <div style="font-size:17px; font-weight:500;">{{ ledger.employee.name }}</div>
+    <div class="muted small">{{ ledger.employee.phone }}</div>
+  </div>
+  {% if ledger.outstanding > 0 %}
+  <span class="badge rejected" style="margin-left:auto; font-size:13px; padding:4px 12px;">Outstanding: {{ ledger.outstanding | money }}</span>
+  {% else %}
+  <span class="badge approved" style="margin-left:auto; font-size:13px; padding:4px 12px;">Fully settled</span>
+  {% endif %}
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem;">
+  <div class="card stat">
+    <div class="num">{{ ledger.total_advanced | money }}</div>
+    <div class="label">Total advanced</div>
+  </div>
+  <div class="card stat">
+    <div class="num" style="color:var(--success-color,green);">{{ ledger.total_settled | money }}</div>
+    <div class="label">Total settled</div>
+  </div>
+  <div class="card stat">
+    <div class="num {% if ledger.outstanding > 0 %}danger{% endif %}">{{ ledger.outstanding | money }}</div>
+    <div class="label">Outstanding balance</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">Movement history</h3>
+    {% if not ledger.movements %}
+    <div class="empty">No movements recorded yet.</div>
+    {% else %}
+    <div class="table-wrap">
+    <table>
+      <tr><th>Date</th><th>Type</th><th>Voucher / method</th><th class="right">Amount</th><th class="right">Balance</th></tr>
+      {% for m in ledger.movements %}
+      <tr>
+        <td class="muted small">{{ m.created_at[:10] }}</td>
+        <td>
+          {% if m.movement_type == 'advance' %}
+            <span class="badge rejected">Advance</span>
+          {% elif m.pending_approval %}
+            <span class="badge pending">Settlement (pending)</span>
+          {% else %}
+            <span class="badge approved">Settlement</span>
+          {% endif %}
+        </td>
+        <td class="small">
+          {% if m.voucher_no %}<a href="/expense-program/expenses" class="muted">{{ m.voucher_no }}</a>{% endif %}
+          {% if m.settlement_method %}<span class="muted">{{ m.settlement_method }}</span>{% endif %}
+          {% if m.note %}<span class="muted"> · {{ m.note }}</span>{% endif %}
+          {% if m.pending_approval %}
+            <span class="muted"> · by {{ m.created_by_name }}</span>
+          {% elif m.approved_by_name %}
+            <span class="muted"> · approved by {{ m.approved_by_name }}</span>
+          {% endif %}
+        </td>
+        <td class="right {% if m.amount > 0 %}danger{% else %}{% endif %}">
+          {{ m.amount | money }}
+        </td>
+        <td class="right">
+          {% if m.running_balance is not none %}
+            {% if m.running_balance > 0 %}<strong>{{ m.running_balance | money }}</strong>
+            {% else %}<span class="muted">{{ m.running_balance | money }}</span>{% endif %}
+          {% else %}<span class="muted">pending</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Record a settlement</h3>
+    {% if ledger.outstanding <= 0 %}
+    <div class="empty">No outstanding balance to settle.</div>
+    {% else %}
+    {% if user.role == 'user' %}
+    <div class="alert info" style="margin-bottom:12px; font-size:13px;">
+      Your settlement will be submitted for manager/accountant approval before it takes effect.
+    </div>
+    {% endif %}
+    <form method="post" action="/expense-program/advances/{{ ledger.employee.id }}/settle">
+      {{ csrf_input(request) | safe }}
+      <label>Settlement amount ({{ CURRENCY_SYMBOL }}) <span class="muted">— max {{ ledger.outstanding | money }}</span></label>
+      <input type="number" name="amount" step="0.01" min="0.01" max="{{ ledger.outstanding }}"
+             required placeholder="e.g. {{ ledger.outstanding | round(2) }}">
+
+      <label style="margin-top:10px;">Method</label>
+      <select name="method" required>
+        {% for m in settlement_methods %}
+        <option value="{{ m }}">{{ m }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-top:10px;">Note (optional)</label>
+      <input type="text" name="note" placeholder="e.g. Deducted from September payslip">
+
+      <div style="margin-top:12px;">
+        <button class="btn" type="submit">
+          {% if user.role == 'user' %}Submit for approval{% else %}Record settlement{% endif %}
+        </button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

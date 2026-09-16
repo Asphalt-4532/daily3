@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set flash = flash_info %}
+{% if flash %}
+<div class="alert info" style="margin-bottom:14px;">{{ flash }}</div>
+{% endif %}
+
+{% if pending and can_see_all %}
+<div class="alert danger" style="margin-bottom:14px;">
+  <strong>{{ pending | length }} settlement{{ 's' if pending | length != 1 }} awaiting approval</strong>
+  {% for s in pending %}
+  <div style="font-size:13px; margin-top:6px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+    <span>
+      <strong>{{ s.employee_name }}</strong> — {{ s.settlement_method }},
+      {{ s.amount | abs | money }} · submitted by {{ s.created_by_name }} on {{ s.created_at[:10] }}
+      {% if s.note %}<span class="muted"> · "{{ s.note }}"</span>{% endif %}
+    </span>
+    <span style="display:flex; gap:6px; flex-shrink:0;">
+      <form method="post" action="/expense-program/advances/settlements/{{ s.id }}/approve" style="display:inline;">
+        {{ csrf_input(request) | safe }}
+        <button class="btn small" type="submit">Approve</button>
+      </form>
+      <button class="btn small danger" type="button"
+              onclick="document.getElementById('rej-{{ s.id }}').style.display='block'">Reject</button>
+    </span>
+  </div>
+  <form method="post" action="/expense-program/advances/settlements/{{ s.id }}/reject"
+        id="rej-{{ s.id }}" style="display:none; margin-top:6px; gap:6px; align-items:center;">
+    {{ csrf_input(request) | safe }}
+    <input type="text" name="reason" placeholder="Reason (required)" required style="width:220px; font-size:13px;">
+    <button class="btn small danger" type="submit">Confirm rejection</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid grid-3" style="margin-bottom:16px;">
+  <div class="card stat">
+    <div class="num {% if total_outstanding > 0 %}danger{% endif %}">{{ total_outstanding | money }}</div>
+    <div class="label">Total outstanding</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ balances | selectattr('outstanding', 'gt', 0) | list | length }}</div>
+    <div class="label">Employees with open advances</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ total_settled_this_month | money }}</div>
+    <div class="label">Settled this month</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">{% if can_see_all %}All employees{% else %}Your advances{% endif %}</h3>
+  {% if not balances %}
+  <div class="empty">No advance records yet.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <tr>
+      <th>Employee</th>
+      <th>Phone</th>
+      <th class="right">Total advanced</th>
+      <th class="right">Settled</th>
+      <th class="right">Outstanding</th>
+      <th></th>
+    </tr>
+    {% for b in balances %}
+    <tr onclick="window.location='/expense-program/advances/{{ b.id }}'" style="cursor:pointer;">
+      <td><strong>{{ b.name }}</strong></td>
+      <td class="muted small">{{ b.phone }}</td>
+      <td class="right">{{ b.total_advanced | money }}</td>
+      <td class="right" style="color:var(--success-color, green);">{{ b.total_settled | money }}</td>
+      <td class="right">
+        {% if b.outstanding <= 0 %}
+          <span class="badge approved">{{ b.outstanding | money }}</span>
+        {% elif b.outstanding < 500 %}
+          <span class="badge pending">{{ b.outstanding | money }}</span>
+        {% else %}
+          <span class="badge rejected">{{ b.outstanding | money }}</span>
+        {% endif %}
+      </td>
+      <td><a class="btn small secondary" href="/expense-program/advances/{{ b.id }}">View →</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

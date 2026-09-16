@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:900px; margin:0 auto;">
+  <h2 class="mt-0">New production report</h2>
+  <p class="muted" style="margin-top:-8px;">One box per line: description, then dimensions
+    (<code>widthxheightxlengthxthickness</code>, e.g. <code>cable tray 100x50x2.44mx0.7</code>).
+    For an elbow or tee, leave the length part empty and name the bend angle
+    (<code>fitting 90 degree elbow 200x50xx0.7mm</code>) or include the word "tee"
+    (<code>cable tray tee 200-200-200x100xx0.7mm</code>). Weight is calculated automatically.</p>
+  <form method="post" action="/weekly-productions/reports/new" id="reportForm">
+    {{ csrf_input(request) | safe }}
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input type="date" name="report_date" value="{{ form_values.report_date if form_values else today }}" required>
+      </div>
+      <div>
+        <label>Shift</label>
+        <select name="shift">
+          <option value="" {{ 'selected' if not form_values or not form_values.shift }}>— none —</option>
+          <option value="Morning" {{ 'selected' if form_values and form_values.shift == 'Morning' }}>Morning</option>
+          <option value="Afternoon" {{ 'selected' if form_values and form_values.shift == 'Afternoon' }}>Afternoon</option>
+          <option value="Evening" {{ 'selected' if form_values and form_values.shift == 'Evening' }}>Evening</option>
+          <option value="Night" {{ 'selected' if form_values and form_values.shift == 'Night' }}>Night</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Production line / department</label>
+    <input type="text" name="line_name" placeholder="e.g. Line 1, Roll Forming" required
+           value="{{ form_values.line_name if form_values else '' }}">
+
+    <label style="margin-top:18px;">Material lines</label>
+    <div id="lines">
+      {% set line_list = form_values.lines if form_values and form_values.lines else [{}] %}
+      {% for line in line_list %}
+      <div class="line-row">
+        <div class="row">
+          <div style="flex:1; min-width:90px;">
+            <label>Material</label>
+            <select name="line_material_type" required>
+              {% for m in material_types %}
+              <option value="{{ m }}" {{ 'selected' if line.material_type == m }}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:4; min-width:260px;">
+            <label>Description + dimensions</label>
+            <input type="text" name="line_desc_dims" placeholder="cable tray 100x50x2.44mx0.7" required
+                   value="{{ line.raw or '' }}">
+          </div>
+          <div style="flex:1; min-width:90px;">
+            <label>Quantity</label>
+            <input type="number" name="line_quantity" step="1" min="1" required value="{{ line.quantity or '' }}">
+          </div>
+          <div style="flex:0 0 auto; align-self:center; padding-top:18px;">
+            <button type="button" class="btn small secondary remove-line" title="Remove this line">✕</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="actions-row" style="margin-top:4px;">
+      <button type="button" class="btn small secondary" id="addLineBtn">+ Add line</button>
+    </div>
+
+    <label style="margin-top:18px;">Notes</label>
+    <textarea name="notes" rows="2" placeholder="Optional">{{ form_values.notes if form_values else '' }}</textarea>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Save report</button>
+      <a class="btn secondary" href="/weekly-productions/reports">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<template id="lineTemplate">
+  <div class="line-row">
+    <div class="row">
+      <div style="flex:1; min-width:90px;">
+        <label>Material</label>
+        <select name="line_material_type" required>
+          {% for m in material_types %}
+          <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:4; min-width:260px;">
+        <label>Description + dimensions</label>
+        <input type="text" name="line_desc_dims" placeholder="cable tray 100x50x2.44mx0.7" required>
+      </div>
+      <div style="flex:1; min-width:90px;">
+        <label>Quantity</label>
+        <input type="number" name="line_quantity" step="1" min="1" required>
+      </div>
+      <div style="flex:0 0 auto; align-self:center; padding-top:18px;">
+        <button type="button" class="btn small secondary remove-line" title="Remove this line">✕</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+(function() {
+  var linesEl = document.getElementById('lines');
+  var addBtn = document.getElementById('addLineBtn');
+  var template = document.getElementById('lineTemplate');
+
+  function updateRemoveButtons() {
+    var rows = linesEl.querySelectorAll('.line-row');
+    rows.forEach(function(row) {
+      var btn = row.querySelector('.remove-line');
+      btn.style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+    });
+  }
+
+  addBtn.addEventListener('click', function() {
+    var clone = template.content.cloneNode(true);
+    linesEl.appendChild(clone);
+    updateRemoveButtons();
+  });
+
+  linesEl.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-line')) {
+      var row = e.target.closest('.line-row');
+      if (linesEl.querySelectorAll('.line-row').length > 1) {
+        row.remove();
+        updateRemoveButtons();
+      }
+    }
+  });
+
+  updateRemoveButtons();
+})();
+</script>
+{% endblock %}

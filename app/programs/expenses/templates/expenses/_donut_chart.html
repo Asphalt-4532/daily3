@@ -1,0 +1,27 @@
+{# Donut chart + legend for a category breakdown. Expects `donut` in
+   context (the dict returned by app.chart_helpers.build_donut_chart) and
+   `empty_message` (shown instead of the chart when donut.has_data is
+   False). Used by dashboard.html and reports.html - previously this whole
+   block was duplicated byte-for-byte between the two; a duplication check
+   found it and it was pulled out here. #}
+{% if not donut.has_data %}
+  <div class="empty">{{ empty_message }}</div>
+{% else %}
+  <div class="donut-wrap">
+    <div class="donut" style="background:{{ donut.gradient }};">
+      <div class="donut-hole">
+        <div class="donut-total">{{ donut.grand_total | money }}</div>
+        <div class="donut-total-label">Total</div>
+      </div>
+    </div>
+    <div class="donut-legend">
+      {% for entry in donut.legend %}
+      <div class="legend-row">
+        <span class="legend-dot" style="background:{{ entry.color }};"></span>
+        <span class="legend-name">{{ entry.name }}</span>
+        <span class="legend-value">{{ entry.total | money }} · {{ entry.percent }}%</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}

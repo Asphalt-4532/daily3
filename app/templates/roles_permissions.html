@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_users_subnav.html" %}
+
+<div class="card">
+  <h2 class="mt-0">Roles &amp; Permissions</h2>
+  <p class="muted" style="margin-top:-6px;">
+    Tick which roles can do each thing below, then <strong>Save</strong> that row. Changes apply
+    immediately, everywhere, to every user with that role — no restart needed.
+  </p>
+  {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+
+  {# One (invisible, table-less) form per permission row, referenced by the checkboxes/button
+     inside the table below via the HTML5 form="" attribute - a <form> can't legally be a direct
+     child of <tr>, and every row needs its own independent submit, so the forms live here instead
+     of nested in the table markup. #}
+  {% for perm in permission_matrix %}
+  <form method="post" action="/users/roles/update" id="perm-{{ perm.key }}" style="display:none;">
+    {{ csrf_input(request) | safe }}
+    <input type="hidden" name="permission" value="{{ perm.key }}">
+  </form>
+  {% endfor %}
+
+  <div class="table-wrap">
+  <table class="perm-table">
+    <tr>
+      <th>Permission</th>
+      {% for r in roles %}<th class="center">{{ r }}</th>{% endfor %}
+      <th></th>
+    </tr>
+    {% for perm in permission_matrix %}
+    <tr>
+      <td>
+        {{ perm.label }}
+        <div class="muted small">{{ perm.description }}</div>
+      </td>
+      {% for r in roles %}
+      <td class="center">
+        <input type="checkbox" name="allowed_roles" value="{{ r }}" form="perm-{{ perm.key }}"
+               {{ 'checked' if perm.roles[r] }}
+               style="width:auto;">
+      </td>
+      {% endfor %}
+      <td>
+        <button class="btn small secondary" type="submit" form="perm-{{ perm.key }}">Save</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <p class="muted small" style="margin-top:14px;">
+    "Manage users &amp; permissions" can never be turned off for every role at once — the app
+    refuses that specific change so nobody gets locked out of this page with no way back in.
+    Adding, renaming, or removing a role itself (rather than what an existing role can do) is a
+    bigger change — see <code>CHANGE_IMPACT_GUIDE.md</code>.
+  </p>
+</div>
+{% endblock %}

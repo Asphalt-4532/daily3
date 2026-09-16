@@ -1,0 +1,61 @@
+{# The notification centre: a right-hand slide-over grouped by urgency.
+
+   CSS-only, driven by a hidden checkbox, exactly like the module drawer in
+   base.html - so it opens and closes with JavaScript disabled. Included by
+   base.html and _standalone_header.html, the same two places the bell is,
+   so the panel is identical inside a program and on the hub.
+
+   Opening the panel does NOT mark everything read. That is the one
+   behaviour difference from the /notifications page, and it is deliberate:
+   a panel you can flick open from any page would otherwise silently clear
+   the badge every time somebody glanced at it. Marking read is an explicit
+   button here.
+
+   The grouping and its headings come from app/services/notifications.py's
+   GROUPS - this template does not decide what counts as urgent. #}
+{% set groups = notification_groups(request) %}
+<input type="checkbox" id="notif-panel" aria-label="Open notifications">
+<label class="notif-scrim" for="notif-panel"></label>
+
+<aside class="notif-drawer" aria-label="Notifications">
+  <div class="notif-drawer-head">
+    <div class="title">Notifications</div>
+    <label class="notif-drawer-close" for="notif-panel" title="Close">&times;</label>
+  </div>
+
+  <div class="notif-drawer-body">
+    {% if groups %}
+      {% for key, heading, items in groups %}
+      <div class="notif-group notif-group-{{ key }}">
+        <div class="notif-group-head">{{ heading }} <span class="notif-group-n">{{ items | length }}</span></div>
+        <ul class="notif-list">
+          {% for n in items %}
+          <li class="notif-item {{ 'is-unread' if not n.read }}">
+            {% if n.link %}<a href="{{ n.link }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
+            <div class="notif-meta">
+              <span class="muted small">{{ n.created_at }}</span>
+              {% if not n.read %}
+              <form method="post" action="/notifications/{{ n.id }}/read" class="notif-read-form">
+                {{ csrf_input(request) | safe }}
+                <button type="submit" class="linkish small">Mark read</button>
+              </form>
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="muted" style="padding:14px;">Nothing needs your attention right now.</p>
+    {% endif %}
+  </div>
+
+  <div class="notif-drawer-foot">
+    <form method="post" action="/notifications/read-all" style="flex:1;">
+      {{ csrf_input(request) | safe }}
+      <button type="submit" class="btn secondary small">Mark all read</button>
+    </form>
+    <a class="btn ghost small" href="/notifications">Open full page</a>
+  </div>
+</aside>

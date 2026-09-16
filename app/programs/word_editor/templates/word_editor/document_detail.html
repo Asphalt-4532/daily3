@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.subject or doc.title }} — Word Editor{% endblock %}
+{% block content %}
+<style>
+.doc-comment-layout{display:grid;grid-template-columns:1fr 310px;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;min-height:520px;}
+.doc-content-panel{padding:24px 28px;border-right:1px solid var(--line);}
+.inbox-panel{background:#fafbfc;display:flex;flex-direction:column;}
+.inbox-hdr{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;}
+.unread-pill{background:var(--brand);color:#fff;border-radius:20px;font-size:10px;padding:1px 7px;}
+.thread-row{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
+.thread-row:hover{background:#f0f2f7;}
+.thread-row.unread{background:#eaf1fd;}
+.tr-top{display:flex;align-items:center;gap:7px;margin-bottom:3px;}
+.av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;}
+.av-b{background:#E6F1FB;color:#0C447C;} .av-g{background:#E1F5EE;color:#085041;}
+.av-a{background:#FAEEDA;color:#633806;} .av-p{background:#EEEDFE;color:#3C3489;}
+.tr-name{font-size:12.5px;font-weight:600;flex:1;} .tr-time{font-size:11px;color:var(--ink-faint);}
+.tr-preview{font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:31px;}
+.tr-chips{display:flex;gap:4px;margin-top:4px;padding-left:31px;flex-wrap:wrap;}
+.chip{font-size:10px;padding:1px 6px;border-radius:20px;font-weight:600;}
+.chip-cnt{background:#f3f4f7;color:var(--ink-soft);border:1px solid var(--line);}
+.chip-new{background:var(--brand);color:#fff;}
+.chip-loc{background:#E1F5EE;color:#085041;}
+.compose-area{padding:10px 14px;border-top:1px solid var(--line);margin-top:auto;}
+.compose-trigger{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--ink-faint);font-size:13px;font-family:inherit;cursor:text;text-align:left;}
+.compose-trigger:hover{border-color:var(--brand);}
+.wd-tag-user{display:inline-flex;background:#E6F1FB;color:#0C447C;border-radius:4px;padding:0 5px;font-size:13px;font-weight:500;}
+.wd-tag-loc{display:inline-flex;background:#E1F5EE;color:#085041;border-radius:4px;padding:0 5px;font-size:13px;font-weight:500;}
+</style>
+
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+  <div>
+    <h2 style="margin:0;">{{ doc.subject or doc.title }}</h2>
+    <span class="muted small">
+      {{ doc.doc_no }} ·
+      {% if doc.status == 'self_approved' %}<span class="badge approved">Self-approved</span>
+      {% elif doc.status == 'official' %}<span class="badge" style="background:#dcfce7;color:#166534;">Official</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="actions-row">
+    <a class="btn ghost small" href="/word-editor/documents">← Back</a>
+    <a class="btn secondary small" href="/word-editor/documents/{{ doc.id }}/print" target="_blank">Print / PDF</a>
+    {# No editable download once official: the PDF is the issued record, and
+       a .doc of it would open in Word carrying the official number and
+       letterhead while no longer matching the hash the verify page checks.
+       The route enforces this too - this only stops offering a button that
+       would bounce. #}
+    {% if doc.status != 'official' %}
+    <a class="btn ghost small" href="/word-editor/documents/{{ doc.id }}/export?fmt=doc">Download .doc</a>
+    {% endif %}
+    <a class="btn ghost small" href="/word-editor/documents/{{ doc.id }}/history">History</a>
+    {% if doc.status == 'official' %}<a class="btn ghost small" href="/word-editor/verify/{{ doc.doc_no }}" target="_blank">Verify page</a>{% endif %}
+    {% if can_official and doc.status == 'self_approved' %}
+    <button class="btn small" onclick="document.getElementById('officialModal').style.display='flex'">Make official</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="doc-comment-layout">
+  <!-- Document body -->
+  <div class="doc-content-panel">
+    <div style="font-size:11px;color:var(--ink-soft);display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);">
+      <span>{{ doc.last_edited_at[:10] }}</span>
+      <span>By {{ doc.creator_name }}</span>
+      {% if doc.receiver_name %}<span>To: {{ doc.receiver_name }}{% if doc.receiver_phone %} · {{ doc.receiver_phone }}{% endif %}</span>{% endif %}
+    </div>
+    <div style="font-size:14px;line-height:1.85;">
+      {{ doc.content_json | safe }}
+    </div>
+    {% if doc.tags %}
+    <div style="margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-faint);font-style:italic;">
+      Tagged:
+      {% for t in doc.tags %}
+        {% if t.tag_type == 'user' %}<span class="wd-tag-user">@{{ t.user_name }}</span>
+        {% else %}<span class="wd-tag-loc">@{{ t.loc_name }}</span>{% endif %}
+      {% endfor %}
+      · Internal only, not printed.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Inbox panel -->
+  <div class="inbox-panel">
+    <div class="inbox-hdr">
+      Comments
+      {% if threads %}<span class="unread-pill">{{ threads | length }}</span>{% endif %}
+    </div>
+    <div style="flex:1;overflow-y:auto;" id="threadList">
+      {% for thread in threads %}
+      <div class="thread-row" onclick="openThread({{ loop.index0 }})">
+        <div class="tr-top">
+          <div class="av av-b">{{ thread.display_name[:2] | upper }}</div>
+          <span class="tr-name">{{ thread.display_name }}</span>
+          <span class="tr-time">{{ thread.created_at[11:16] }}</span>
+        </div>
+        <div class="tr-preview">{{ thread.content | striptags | truncate(55) }}</div>
+        <div class="tr-chips">
+          <span class="chip chip-cnt">{{ thread.reply_count + 1 }} message{{ 's' if thread.reply_count }}</span>
+          {% for t in thread.tags %}
+            {% if t.tag_type == 'location' %}<span class="chip chip-loc">@{{ t.loc_name }}</span>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="empty" style="padding:20px;">No comments yet.</div>
+      {% endfor %}
+    </div>
+    <div class="compose-area" id="composeArea">
+      <div id="composeTrigger" class="compose-trigger" onclick="openCompose()">Write a comment…</div>
+      <div id="composeExpanded" style="display:none;">
+        <form method="post" action="/word-editor/documents/{{ doc.id }}/comments">
+          {{ csrf_input(request) | safe }}
+          <textarea name="content" id="newCommentTA" placeholder="Write a comment… type @ to tag" style="width:100%;min-height:64px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:none;" oninput="updateVisHint(this.value)"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:11px;color:var(--ink-faint);" id="visHint">Only {{ doc.creator_name }} sees this</span>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="btn ghost small" onclick="closeCompose()">Cancel</button>
+              <button type="submit" class="btn small">Post</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Thread detail overlay data (hidden, rendered by JS) -->
+<script>
+const THREADS_DATA = {{ threads | tojson }};
+function openThread(idx){
+  const t=THREADS_DATA[idx];
+  const html=`<div style="padding:12px 14px;border-bottom:1px solid var(--line-strong);display:flex;align-items:center;gap:8px;background:#fff;">
+    <button onclick="closeThread()" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:13px;">← Back</button>
+    <span style="font-size:13px;font-weight:600;">${t.display_name}</span>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
+    ${[t,...(t.replies||[])].map(m=>`
+    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;${m.author_id===t.author_id&&m!==t?'margin-left:16px;border-left:2px solid #dbe7fc;':''}">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+        <div class="av av-b" style="width:22px;height:22px;font-size:9px;">${(m.display_name||m.author_name||'?').slice(0,2).toUpperCase()}</div>
+        <span style="font-size:12px;font-weight:600;">${m.display_name||m.author_name}</span>
+        <span style="font-size:11px;color:var(--ink-faint);margin-left:auto;">${(m.created_at||'').slice(11,16)}</span>
+      </div>
+      <div style="font-size:13px;line-height:1.55;">${m.content}</div>
+    </div>`).join('')}
+  </div>
+  <div style="padding:10px 14px;border-top:1px solid var(--line);">
+    <form method="post" action="/word-editor/comments/${t.id}/reply">
+      <input type="hidden" name="csrf_token" value="${document.querySelector('[name=csrf_token]')?.value||''}">
+      <input type="hidden" name="doc_id" value="{{ doc.id }}">
+      <textarea name="content" placeholder="Reply… type @ to widen visibility" style="width:100%;min-height:52px;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:none;"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+        <span style="font-size:11px;color:var(--ink-faint);">Without @, only thread participants see this</span>
+        <button type="submit" style="background:var(--brand);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">Send</button>
+      </div>
+    </form>
+  </div>`;
+  const panel=document.querySelector('.inbox-panel');
+  panel.innerHTML=html; panel.style.display='flex'; panel.style.flexDirection='column';
+}
+function closeThread(){
+  location.reload();
+}
+function openCompose(){
+  document.getElementById('composeTrigger').style.display='none';
+  document.getElementById('composeExpanded').style.display='block';
+  document.getElementById('newCommentTA').focus();
+}
+function closeCompose(){
+  document.getElementById('composeTrigger').style.display='block';
+  document.getElementById('composeExpanded').style.display='none';
+}
+function updateVisHint(val){
+  const hint=document.getElementById('visHint');
+  if(!hint)return;
+  const hasLoc=/@(Factory|Transport|Admin|Warehouse)/.test(val);
+  const hasPerson=/@[A-Z]/.test(val);
+  if(hasLoc) hint.textContent='Visible to {{ doc.creator_name }}, you, + all at tagged location';
+  else if(hasPerson) hint.textContent='Visible to {{ doc.creator_name }}, you, + tagged people';
+  else hint.textContent='Only {{ doc.creator_name }} sees this';
+}
+</script>
+
+{% if can_official and doc.status == 'self_approved' %}
+<div id="officialModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px;width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <h3 style="margin-bottom:8px;">Make this document official</h3>
+    <p class="muted small" style="margin-bottom:16px;">This elevates the document to Official status. Add an optional note for context.</p>
+    <form method="post" action="/word-editor/documents/{{ doc.id }}/official">
+      {{ csrf_input(request) | safe }}
+      <label>Manager note (optional)</label>
+      <textarea name="manager_note" placeholder="e.g. Approved for procurement reference only." style="min-height:80px;"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button type="button" class="btn secondary" onclick="document.getElementById('officialModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn">Confirm — make official</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

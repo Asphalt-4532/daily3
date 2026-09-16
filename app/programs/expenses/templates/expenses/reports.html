@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2 class="mt-0">Reports</h2>
+  <form method="get" class="filters">
+    <div>
+      <label>From</label>
+      <input type="date" name="start" value="{{ start }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" name="end" value="{{ end }}">
+    </div>
+    <div style="min-width:auto;">
+      <button class="btn secondary" type="submit">Update</button>
+    </div>
+    <div style="min-width:auto;">
+      <a class="btn" href="/expense-program/reports/export.xlsx?start={{ start }}&end={{ end }}">Listing → Excel</a>
+    </div>
+    <div style="min-width:auto;">
+      <a class="btn secondary" href="/expense-program/reports/export.pdf?start={{ start }}&end={{ end }}">Listing → PDF</a>
+    </div>
+    <div style="min-width:auto;">
+      <a class="btn secondary" href="/expense-program/reports/export-summary.pdf?start={{ start }}&end={{ end }}">Summary → PDF</a>
+    </div>
+  </form>
+  <div class="stat">
+    <div class="num">{{ grand_total | money }}</div>
+    <div class="label">Total approved spend, selected period</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">By category</h3>
+    {% set empty_message = "No approved expenses in this period." %}
+    {% include "expenses/_donut_chart.html" with context %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">By cost centre</h3>
+    {% set max_cc = (by_cost_center | map(attribute='total') | max) if by_cost_center else 0 %}
+    {% if max_cc == 0 %}
+      <div class="empty">No cost centres with approved expenses in this period.</div>
+    {% else %}
+      {% for row in by_cost_center %}
+        {% if row.total > 0 %}
+        <div style="margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:3px;">
+            <span>{{ row.name }}</span><span class="muted">{{ row.total | money }}</span>
+          </div>
+          <div style="background:#eee; border-radius:6px; overflow:hidden; height:10px;">
+            <div style="width:{{ (row.total / max_cc * 100) | round(1) }}%; background:var(--accent); height:100%;"></div>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

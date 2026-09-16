@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div>
+      <h2 class="mt-0" style="margin-bottom:2px;">Backups</h2>
+      <p class="muted" style="margin:0;">Automatic backups run in the background. Every backup contains the full
+        database (all vouchers, users, categories, audit log) plus any uploaded receipts.
+        <a href="/backups/restore-log">View restore log →</a></p>
+    </div>
+    <form method="post" action="/backups/create">
+      {{ csrf_input(request) | safe }}
+      <button class="btn" type="submit">Back up now</button>
+    </form>
+  </div>
+  {% if error %}<div class="alert error" style="margin-top:12px;">{{ error }}</div>{% endif %}
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <tr>
+      <th>Created</th><th>Trigger</th><th>Vouchers</th><th>Approved total</th>
+      <th>Date range covered</th><th>Size</th><th>Integrity</th><th></th>
+    </tr>
+    {% for b in backups %}
+    <tr>
+      <td>{{ b.created_at }}</td>
+      <td>
+        {% if b.trigger == 'manual' %}Manual{% if b.triggered_by %} — {{ b.triggered_by }}{% endif %}
+        {% elif b.trigger == 'prerestore' %}Auto safety copy (before a restore)
+        {% else %}Scheduled{% endif %}
+      </td>
+      <td>{{ b.total_vouchers }}
+        <span class="muted" style="font-size:11.5px;">
+          ({{ b.counts_by_status.pending }} pending, {{ b.counts_by_status.approved }} approved,
+          {{ b.counts_by_status.rejected }} rejected, {{ b.counts_by_status.deleted }} deleted)
+        </span>
+      </td>
+      <td>{{ b.total_approved_amount | money }}</td>
+      <td>{% if b.earliest_date %}{{ b.earliest_date }} → {{ b.latest_date }}{% else %}—{% endif %}</td>
+      <td>{{ "%.1f"|format(b.size_bytes / 1024 / 1024) }} MB
+        <span class="muted" style="font-size:11px;">({{ b.compression or 'DEFLATE' }})</span>
+      </td>
+      <td>
+        {% if b._has_sha256 %}
+        <span class="badge approved" id="sha-badge-{{ loop.index }}" title="{{ b.sha256 }}">✓ SHA-256</span>
+        <button class="btn small secondary" style="font-size:11px;padding:2px 7px;"
+                onclick="verifyBackup('{{ b.filename }}', {{ loop.index }})"
+                id="verify-btn-{{ loop.index }}">Verify</button>
+        {% else %}
+        <span class="badge" style="background:#fef3c7;color:#92400e;font-size:11px;">No checksum</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if b._missing %}
+        <span class="badge rejected">file missing</span>
+        <form method="post" action="/backups/{{ b.filename }}/delete" style="display:inline;">
+          {{ csrf_input(request) | safe }}
+          <button class="btn small secondary" type="submit">Remove from list</button>
+        </form>
+        {% else %}
+        <div class="actions-row" style="margin-top:0;">
+          <a class="btn small secondary" href="/backups/{{ b.filename }}/view">View records</a>
+          <a class="btn small secondary" href="/backups/{{ b.filename }}/download">Download</a>
+          <button class="btn small danger" type="button"
+                  onclick="document.getElementById('restore-{{ loop.index }}').style.display='block'">Restore</button>
+          <form method="post" action="/backups/{{ b.filename }}/delete" style="display:inline;"
+                onsubmit="return confirm('Delete this backup file? This cannot be undone.');">
+            {{ csrf_input(request) | safe }}
+            <button class="btn small secondary" type="submit">Delete</button>
+          </form>
+        </div>
+        {% endif %}
+      </td>
+    </tr>
+    {% if not b._missing %}
+    <tr id="restore-{{ loop.index }}" style="display:none;">
+      <td colspan="7">
+        <form method="post" action="/backups/{{ b.filename }}/restore"
+              onsubmit="return confirm('This will REPLACE all current data with this backup from {{ b.created_at }}. A safety copy of what you have right now will be taken automatically first. Continue?');"
+              style="background:#eef2f8; padding:12px; border-radius:8px;">
+          {{ csrf_input(request) | safe }}
+          <div class="row">
+            <div>
+              <label>Reason for restoring (required, kept in the audit trail)</label>
+              <input type="text" name="reason" required>
+            </div>
+            <div>
+              <label>Type RESTORE to confirm</label>
+              <input type="text" name="confirm_text" required placeholder="RESTORE">
+            </div>
+          </div>
+          <div style="margin-top:8px;">
+            <button class="btn danger" type="submit">Confirm restore from {{ b.created_at }}</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+    {% endif %}
+    {% else %}
+    <tr><td colspan="7" class="empty">No backups yet — the first automatic backup will appear here shortly
+      after startup, or click "Back up now" above.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">Restore from an offsite / downloaded backup</h3>
+  <p class="muted" style="margin-top:-6px;">Use this if you're rebuilding on a new server and need to bring back
+    a backup you'd previously downloaded and stored elsewhere. The file is checked thoroughly before anything is
+    touched — invalid, corrupted, or unrelated files are rejected safely.</p>
+  <form method="post" action="/backups/restore-upload" enctype="multipart/form-data"
+        onsubmit="return confirm('This will REPLACE all current data with the uploaded backup. A safety copy of what you have right now will be taken automatically first. Continue?');">
+    {{ csrf_input(request) | safe }}
+    <div class="row">
+      <div>
+        <label>Backup .zip file (max {{ max_upload_mb }} MB)</label>
+        <input type="file" name="backup_file" accept=".zip" required>
+      </div>
+      <div>
+        <label>Reason for restoring</label>
+        <input type="text" name="reason" required>
+      </div>
+      <div>
+        <label>Type RESTORE to confirm</label>
+        <input type="text" name="confirm_text" required placeholder="RESTORE">
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn danger" type="submit">Restore from uploaded file</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function verifyBackup(filename, idx) {
+  // Read CSRF token from any already-rendered hidden field on the page.
+  const csrfToken = document.querySelector('[name="csrf_token"]')?.value || '';
+  const btn = document.getElementById('verify-btn-' + idx);
+  const badge = document.getElementById('sha-badge-' + idx);
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  const form = new FormData();
+  form.append('csrf_token', csrfToken);
+  fetch('/backups/' + encodeURIComponent(filename) + '/verify', {method:'POST', body: form})
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        badge.className = 'badge approved';
+        badge.title = 'SHA-256: ' + data.sha256;
+        badge.textContent = '✓ Verified';
+        btn.textContent = '✓';
+        btn.style.color = 'var(--ok, green)';
+      } else {
+        badge.className = 'badge rejected';
+        badge.title = data.reason;
+        badge.textContent = '⚠ Mismatch';
+        btn.textContent = '!';
+        btn.style.color = 'var(--bad, red)';
+        alert('Integrity check failed:\n' + data.reason);
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.textContent = 'Verify'; });
+}
+</script>
+{% endblock %}

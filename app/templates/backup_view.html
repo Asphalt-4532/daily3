@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <a href="/backups">← Back to backups</a>
+  <h2 class="mt-0">{{ filename }}</h2>
+  <p class="muted" style="margin-top:-8px;">
+    Backed up {{ meta.created_at }} ·
+    {{ meta.trigger }}{% if meta.triggered_by %} by {{ meta.triggered_by }}{% endif %} ·
+    {{ meta.total_vouchers }} vouchers · {{ meta.total_approved_amount | money }} approved total
+  </p>
+  <p class="muted" style="margin-top:-6px; font-size:12.5px;">
+    This is a read-only preview of what's inside the backup — nothing here has been restored.
+  </p>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <tr>
+      <th>Voucher</th><th>Date</th><th>Category</th><th>Cost centre</th><th>Paid to</th>
+      <th class="right">Amount</th><th>Status</th><th>Last updated</th>
+    </tr>
+    {% for r in records %}
+    <tr>
+      <td>{{ r.voucher_no or 'Draft' }}</td>
+      <td>{{ r.expense_date }}</td>
+      <td>{{ r.category_name }}</td>
+      <td>{{ r.cost_center_name or '—' }}</td>
+      <td>{{ r.paid_to }}</td>
+      <td class="right">{{ r.amount | money }}</td>
+      <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+      <td>{{ r.last_updated }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="empty">This backup contains no voucher records.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

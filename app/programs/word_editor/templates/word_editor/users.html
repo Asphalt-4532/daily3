@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}User Management — Word Editor{% endblock %}
+{% block content %}
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+  <div><h2 style="margin:0;">Word Editor — User management</h2>
+    <span class="muted small">Edit display names, phones, and location assignments. Passwords and roles → <a href="/users">Users admin</a>.</span>
+  </div>
+</div>
+<div class="card" style="padding:0;">
+  <table>
+    <tr><th>User</th><th>Display name</th><th>Phone</th><th>Locations</th><th>Action</th></tr>
+    {% for u in wd_users %}
+    <tr>
+      <td>
+        <div style="font-size:13px;font-weight:600;">{{ u.full_name }}</div>
+        <div style="font-size:11px;color:var(--ink-soft);">{{ u.role }}</div>
+      </td>
+      <td>{{ u.display_name }}</td>
+      <td>{{ u.phone or '—' }}</td>
+      <td>
+        {% if u.locations %}
+          {% for loc in u.locations.split(', ') %}<span class="badge" style="background:#E1F5EE;color:#085041;font-size:10px;margin:1px;">📍 {{ loc }}</span>{% endfor %}
+        {% else %}<span class="muted small">None assigned</span>{% endif %}
+      </td>
+      <td><button class="btn secondary small" onclick="openEdit({{ u | tojson }})">Edit</button></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<!-- Edit modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px;width:460px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;">
+    <h3 id="editModalTitle" style="margin-bottom:16px;">Edit user</h3>
+    <form method="post" id="editForm">
+      {{ csrf_input(request) | safe }}
+      <label>Display name</label>
+      <input type="text" name="display_name" id="editDisplayName" placeholder="Full name shown in @ mentions">
+      <label>Phone</label>
+      <input type="text" name="phone" id="editPhone" placeholder="+966 55 …">
+      <label>Access note</label>
+      <input type="text" name="access_note" id="editAccessNote" placeholder="e.g. Site engineer — Hall B only">
+      <label style="margin-top:14px;">Assigned locations</label>
+      <div id="locationCheckboxes" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+        {% for cc in cost_centers %}
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;letter-spacing:0;cursor:pointer;font-weight:400;">
+          <input type="checkbox" name="location_ids" value="{{ cc.id }}" class="loc-check" style="width:auto;">
+          📍 {{ cc.name }}
+        </label>
+        {% endfor %}
+      </div>
+      <p class="hint">Location assignment controls which @location tags this user can see.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+        <button type="button" class="btn secondary" onclick="document.getElementById('editModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEdit(u){
+  document.getElementById('editModalTitle').textContent='Edit: '+u.full_name;
+  document.getElementById('editDisplayName').value=u.display_name||u.full_name;
+  document.getElementById('editPhone').value=u.phone||'';
+  document.getElementById('editAccessNote').value=u.access_note||'';
+  document.getElementById('editForm').action='/word-editor/users/'+u.id+'/update';
+  const locIds=u.location_ids||[];
+  document.querySelectorAll('.loc-check').forEach(cb=>{ cb.checked=locIds.includes(+cb.value); });
+  document.getElementById('editModal').style.display='flex';
+}
+</script>
+{% endblock %}

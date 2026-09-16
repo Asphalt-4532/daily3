@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Employee ↔ Login Links · Assets · {{ COMPANY_NAME }}{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h2 style="margin:0;">Employee → Login Links</h2>
+  <a class="btn small secondary" href="/assets/">← Registry</a>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+  <p class="muted small" style="margin:0;">
+    Linking an employee record to a login account lets the system recognise which assets are
+    assigned to someone when they record a voucher — so the asset picker shows only what they
+    actually hold, and the "required if you have something to pick" rule works correctly.
+    Employees who only receive salary advances and never log in stay unlinked.
+  </p>
+</div>
+
+<div class="card" style="padding:0; overflow:auto;">
+  <table>
+    <tr><th>Employee name</th><th>Phone</th><th>Currently linked to</th><th>Link / unlink</th></tr>
+    {% for emp in employees %}
+    <tr>
+      <td>{{ emp.name }}</td>
+      <td class="muted small">{{ emp.phone }}</td>
+      <td>
+        {% if emp.user_name %}
+        <span class="chip ok">{{ emp.user_name }} ({{ emp.username }})</span>
+        {% else %}
+        <span class="muted small">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/assets/employees/{{ emp.id }}/link-user" style="display:flex; gap:6px; align-items:center;">
+          {{ csrf_input(request) | safe }}
+          <select name="user_id" style="padding:3px 6px; font-size:12px;">
+            <option value="">— no link —</option>
+            {% for u in all_users %}
+            <option value="{{ u.id }}" {{ 'selected' if emp.user_id == u.id }}>
+              {{ u.full_name }} ({{ u.username }})
+            </option>
+            {% endfor %}
+          </select>
+          <button class="btn small secondary" type="submit">Save</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not employees %}
+    <tr><td colspan="4" class="muted">No employee records yet. They're created automatically when salary advances are issued.</td></tr>
+    {% endif %}
+  </table>
+</div>
+{% endblock %}

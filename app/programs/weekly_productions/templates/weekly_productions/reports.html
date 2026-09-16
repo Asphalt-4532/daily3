@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-3">
+  <div class="card stat">
+    <div class="num">{{ grand_total | round(1) }}</div>
+    <div class="label">Total quantity in range</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ grand_weight | round(1) }} kg</div>
+    <div class="label">Total weight in range</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ reports | length }}</div>
+    <div class="label">Reports matching filters</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 class="mt-0">Reports</h2>
+  <form method="get" class="filters">
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="recorded" {{ 'selected' if filters.status == 'recorded' }}>Recorded</option>
+        <option value="" {{ 'selected' if not filters.status }}>All</option>
+        {% if user.role == 'manager' %}
+        <option value="deleted" {{ 'selected' if filters.status == 'deleted' }}>Deleted</option>
+        {% endif %}
+      </select>
+    </div>
+    <div>
+      <label>Line / Department</label>
+      <select name="line_name">
+        <option value="">All</option>
+        {% for l in lines %}
+        <option value="{{ l }}" {{ 'selected' if filters.line_name == l }}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Material</label>
+      <select name="material_type">
+        <option value="">All</option>
+        {% for m in material_types %}
+        <option value="{{ m }}" {{ 'selected' if filters.material_type == m }}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>From</label>
+      <input type="date" name="start" value="{{ filters.start }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" name="end" value="{{ filters.end }}">
+    </div>
+    <div style="min-width:auto;">
+      <button class="btn secondary" type="submit">Filter</button>
+    </div>
+  </form>
+
+  {% set qs = {'status': filters.status, 'line_name': filters.line_name,
+               'material_type': filters.material_type, 'start': filters.start,
+               'end': filters.end} | urlencode %}
+  <div class="actions-row" style="margin-top:-4px; margin-bottom:14px;">
+    <a class="btn small secondary" href="/weekly-productions/reports/export.xlsx?{{ qs }}">Download Excel</a>
+    <a class="btn small secondary" href="/weekly-productions/reports/export.pdf?{{ qs }}">Download PDF</a>
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <tr><th>Report</th><th>Date</th><th>Line</th><th>Materials</th><th class="right">Total qty</th>
+        <th class="right">Weight (kg)</th><th>Shift</th><th>Recorded by</th><th>Status</th></tr>
+    {% for r in reports %}
+    <tr onclick="window.location='/weekly-productions/reports/{{ r.id }}'" style="cursor:pointer;">
+      <td>{{ r.report_no }}</td>
+      <td>{{ r.report_date }}</td>
+      <td>{{ r.line_name }}</td>
+      <td>{{ r.material_types or '—' }} <span class="muted">({{ r.line_count }})</span></td>
+      <td class="right">{{ r.total_quantity | round(1) }}</td>
+      <td class="right">{{ r.total_weight | round(2) }}</td>
+      <td>{{ r.shift or '—' }}</td>
+      <td>{{ r.recorded_by_name }}</td>
+      <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="empty">No reports match these filters.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <div class="right" style="margin-top:10px; font-weight:700;">
+    Total qty: {{ total_qty | round(1) }} &nbsp;·&nbsp; Total weight: {{ total_weight | round(2) }} kg
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">By line</h3>
+    {% if not by_line %}
+      <div class="empty">No production recorded yet.</div>
+    {% else %}
+    <table>
+      <tr><th>Line</th><th class="right">Total qty</th><th class="right">Reports</th></tr>
+      {% for row in by_line %}
+      <tr><td>{{ row.name }}</td><td class="right">{{ row.total | round(1) }}</td><td class="right">{{ row.reports }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h3 class="mt-0">By material</h3>
+    {% if not by_material %}
+      <div class="empty">No production recorded yet.</div>
+    {% else %}
+    <table>
+      <tr><th>Material</th><th class="right">Total qty</th><th class="right">Lines</th><th class="right">Weight (kg)</th></tr>
+      {% for row in by_material %}
+      <tr><td>{{ row.name }}</td><td class="right">{{ row.total | round(1) }}</td><td class="right">{{ row.lines }}</td><td class="right">{{ row.total_weight | round(2) }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">By day</h3>
+  {% if not daily %}
+    <div class="empty">No production recorded yet.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <tr><th>Date</th><th class="right">Reports</th><th class="right">Quantity</th><th class="right">Weight (kg)</th></tr>
+    {% for row in daily %}
+    <tr>
+      <td>{{ row.report_date }}</td>
+      <td class="right">{{ row.reports }}</td>
+      <td class="right">{{ row.quantity | round(1) }}</td>
+      <td class="right">{{ row.weight | round(2) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

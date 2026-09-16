@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Notifications · {{ COMPANY_NAME }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 class="mt-0">Notifications</h2>
+  {% if items %}
+  <p class="muted small" style="margin-top:0;">Everything here is now marked as read.</p>
+  <ul class="notif-list">
+    {% for n in items %}
+    <li class="notif-item {{ 'is-unread' if not n.read }}">
+      {% if n.link %}<a href="{{ n.link }}">{{ n.message }}</a>{% else %}{{ n.message }}{% endif %}
+      <div class="muted small">{{ n.created_at }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Nothing needs your attention right now.</p>
+  {% endif %}
+  <div style="margin-top:14px;">
+    <a class="btn secondary" href="/programs">← Back to programs</a>
+  </div>
+</div>
+{% endblock %}

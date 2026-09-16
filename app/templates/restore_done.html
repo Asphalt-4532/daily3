@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:600px; margin:0 auto;">
+  <h2 class="mt-0">Restore complete</h2>
+  <p>Data was restored from <b>{{ restored_from }}</b>.</p>
+  <div class="alert info">
+    Before this restore ran, a safety copy of what was live just before it was automatically saved as:<br>
+    <b>{{ safety_filename }}</b><br>
+    If this restore wasn't what you meant to do, you can restore that file to undo it.
+  </div>
+  <p class="muted" style="font-size:13px;">
+    For absolute certainty that every part of the app is reading the new data, restarting the app
+    (e.g. <code>docker compose restart</code>) is recommended, though not strictly required — this app
+    opens a fresh database connection for every request.
+  </p>
+  <div class="actions-row">
+    <a class="btn" href="/backups">Back to backups</a>
+    <a class="btn secondary" href="/">Go to dashboard</a>
+  </div>
+</div>
+{% endblock %}

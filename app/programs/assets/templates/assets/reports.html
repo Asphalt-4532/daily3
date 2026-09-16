@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Maintenance Reports · Assets · {{ COMPANY_NAME }}{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h2 style="margin:0;">Maintenance Reports</h2>
+  <a class="btn small secondary" href="/assets/">← Asset Registry</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <form method="get" action="/assets/reports" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label>From</label>
+      <input type="date" name="date_from" value="{{ filters.date_from }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" name="date_to" value="{{ filters.date_to }}">
+    </div>
+    <div>
+      <label>Asset category</label>
+      <select name="asset_category">
+        <option value="">All categories</option>
+        {% for cat in asset_categories %}
+        <option value="{{ cat }}" {{ 'selected' if filters.asset_category == cat }}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Cost centre</label>
+      <select name="cost_center_id">
+        <option value="">All centres</option>
+        {% for cc in cost_centers %}
+        <option value="{{ cc.id }}" {{ 'selected' if filters.cost_center_id == cc.id|string }}>
+          {{ cc.code }} — {{ cc.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Include</label>
+      <div style="display:flex; gap:8px; align-items:center; padding-top:6px;">
+        <label style="font-weight:normal; display:flex; gap:4px; align-items:center;">
+          <input type="checkbox" name="kinds" value="cost" {{ 'checked' if not filters.kinds or 'cost' in filters.kinds }}> Cost
+        </label>
+        <label style="font-weight:normal; display:flex; gap:4px; align-items:center;">
+          <input type="checkbox" name="kinds" value="service" {{ 'checked' if not filters.kinds or 'service' in filters.kinds }}> Service
+        </label>
+        <label style="font-weight:normal; display:flex; gap:4px; align-items:center;">
+          <input type="checkbox" name="include_pending" value="1" {{ 'checked' if filters.include_pending == '1' }}> Pending
+        </label>
+      </div>
+    </div>
+    <div style="align-self:flex-end; display:flex; gap:6px;">
+      <button class="btn small secondary" type="submit">Filter</button>
+      <a class="btn small secondary" href="/assets/reports">Clear</a>
+    </div>
+  </form>
+</div>
+
+{% if filters.include_pending == '1' %}
+<div class="alert warn" style="margin-bottom:12px; font-size:13px;">
+  ⚠ Showing pending voucher lines — these are not yet approved costs.
+</div>
+{% endif %}
+
+<div style="display:flex; gap:8px; margin-bottom:12px;">
+  <a class="btn small secondary"
+     href="/assets/reports/export.pdf?date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&asset_category={{ filters.asset_category }}&cost_center_id={{ filters.cost_center_id }}&include_pending={{ filters.include_pending }}">
+    Download PDF
+  </a>
+  <a class="btn small secondary"
+     href="/assets/reports/export.xlsx?date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&asset_category={{ filters.asset_category }}&cost_center_id={{ filters.cost_center_id }}&include_pending={{ filters.include_pending }}">
+    Download Excel
+  </a>
+</div>
+
+{% if not rows %}
+<div class="card"><p class="muted">No maintenance events match the selected filters.</p></div>
+{% else %}
+
+{% set cost_rows = rows | selectattr('kind','equalto','cost') | list %}
+{% set svc_rows  = rows | selectattr('kind','equalto','service') | list %}
+
+<div class="grid grid-3" style="margin-bottom:12px;">
+  <div class="card stat">
+    <div class="stat-label">Cost events</div>
+    <div class="stat-value">{{ cost_rows | length }}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Total approved cost</div>
+    <div class="stat-value">{{ cost_rows | map(attribute='amount') | sum | money }}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Service entries</div>
+    <div class="stat-value">{{ svc_rows | length }} <small class="muted">(no cost)</small></div>
+  </div>
+</div>
+
+<div class="card" style="padding:0; overflow:auto;">
+  <table>
+    <tr>
+      <th>Date</th>
+      <th>Asset</th>
+      <th>Category</th>
+      <th>Kind</th>
+      <th>Description</th>
+      <th style="text-align:right;">Amount</th>
+      <th style="text-align:right;">VAT</th>
+      <th>Voucher</th>
+      <th>By</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td class="small">{{ r.event_date }}</td>
+      <td><a href="/assets/{{ r.asset_id }}">{{ r.asset_tag }}</a></td>
+      <td class="small muted">{{ r.category_name or '—' }}</td>
+      <td class="small">{{ '💰 Cost' if r.kind == 'cost' else '🔧 Service' }}</td>
+      <td>{{ r.description }}</td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums;">
+        {{ r.amount | money if r.amount is not none else '—' }}
+      </td>
+      <td style="text-align:right; font-variant-numeric:tabular-nums;">
+        {{ r.vat_amount | money if r.vat_amount is not none else '—' }}
+      </td>
+      <td class="small muted">
+        {% if r.reference and r.kind == 'cost' %}
+        <a href="/expense-program/expenses/{{ r.reference }}" target="_blank">{{ r.reference }}</a>
+        {% else %}—{% endif %}
+      </td>
+      <td class="small muted">{{ r.recorded_by_name or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

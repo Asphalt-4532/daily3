@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2 class="mt-0">Network</h2>
+  <p class="muted" style="margin-top:-8px;">Controls which hostname(s) this app will accept requests for.
+    It doesn't touch DNS, firewalls, or port forwarding — for exposing this app beyond your LAN (for example
+    with a Cloudflare Tunnel), see the README section on that.</p>
+
+  {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+
+  {% if configs|selectattr('active')|list %}
+  <div class="alert info">
+    You're currently accessing this app as <b>{{ current_host }}</b>. Once any entry below is active, only
+    matching hostnames (plus localhost) are accepted — make sure whatever you use to reach this app is in the
+    list before you rely on this, or you could lock yourself out of it.
+  </div>
+  {% else %}
+  <p class="muted">No entries yet — every hostname is currently accepted (the default). Add one below once
+    you're ready to restrict access to specific hostname(s).</p>
+  {% endif %}
+
+  <div class="table-wrap">
+  <table>
+    <tr><th>Label</th><th>Hostname</th><th>Notes</th><th>Status</th><th>Added by</th><th></th></tr>
+    {% for c in configs %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.hostname }}</td>
+      <td>{{ c.notes or '—' }}</td>
+      <td>{{ 'Active' if c.active else 'Inactive' }}</td>
+      <td>{{ c.created_by_name }}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small secondary" type="button"
+                onclick="document.getElementById('edit-{{ c.id }}').style.display='block'">Edit</button>
+        <form method="post" action="/settings/network/{{ c.id }}/toggle" style="display:inline;">
+          {{ csrf_input(request) | safe }}
+          <button class="btn small secondary" type="submit">{{ 'Disable' if c.active else 'Enable' }}</button>
+        </form>
+        <form method="post" action="/settings/network/{{ c.id }}/delete" style="display:inline;"
+              onsubmit="return confirm('Remove {{ c.hostname }} from the list?');">
+          {{ csrf_input(request) | safe }}
+          <button class="btn small danger" type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="edit-{{ c.id }}" style="display:none;">
+      <td colspan="6">
+        <form method="post" action="/settings/network/{{ c.id }}/edit">
+          {{ csrf_input(request) | safe }}
+          <div class="row">
+            <div><label>Label</label><input type="text" name="name" value="{{ c.name }}" required></div>
+            <div><label>Hostname</label><input type="text" name="hostname" value="{{ c.hostname }}" required></div>
+            <div><label>Notes</label><input type="text" name="notes" value="{{ c.notes }}"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <button class="btn small" type="submit">Save</button>
+            <button class="btn small secondary" type="button"
+                    onclick="document.getElementById('edit-{{ c.id }}').style.display='none'">Cancel</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No network entries configured.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">Add a hostname</h3>
+  <form method="post" action="/settings/network/new">
+    {{ csrf_input(request) | safe }}
+    <div class="row">
+      <div>
+        <label>Label</label>
+        <input type="text" name="name" placeholder="e.g. Cloudflare Tunnel" required>
+      </div>
+      <div>
+        <label>Hostname</label>
+        <input type="text" name="hostname" placeholder="e.g. expense.example.com" required>
+      </div>
+    </div>
+    <label>Notes (optional)</label>
+    <input type="text" name="notes" placeholder="e.g. Public access via Cloudflare Tunnel">
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">Add</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,840 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if doc else 'New Document' }} — Word Editor{% endblock %}
+{% block content %}
+<style>
+.editor-toolbar{background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius) var(--radius) 0 0;padding:6px 10px;display:flex;gap:3px;flex-wrap:wrap;align-items:center;border-bottom:2px solid var(--line);}
+.tb-sep{width:1px;height:20px;background:var(--line-strong);margin:0 4px;flex-shrink:0;}
+.tb-btn{padding:4px 7px;border:none;background:none;border-radius:5px;cursor:pointer;font-size:13px;color:var(--ink);font-family:inherit;display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;}
+.tb-btn:hover{background:var(--paper);}
+.tb-btn.on{background:#dbe7fc;color:var(--brand);}
+.tb-select{padding:3px 6px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:#fff;height:28px;cursor:pointer;}
+.color-wrap{position:relative;display:inline-flex;flex-direction:column;align-items:center;padding:2px 6px;gap:1px;border:none;background:none;border-radius:5px;cursor:pointer;min-width:28px;height:28px;}
+.color-wrap:hover{background:var(--paper);}
+.color-wrap input[type=color]{position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;}
+.color-bar{width:100%;height:3px;border-radius:1px;margin-top:2px;}
+.editor-body{background:#fff;border:1px solid var(--line-strong);border-radius:0 0 var(--radius) var(--radius);min-height:480px;padding:24px 28px;font-size:14px;line-height:1.85;outline:none;}
+.editor-body table{border-collapse:collapse;margin:8px 0;}
+.editor-body table td,.editor-body table th{border:1px solid var(--line-strong);padding:6px 10px;min-width:60px;}
+.editor-body table th{background:#f3f4f7;font-weight:600;}
+.wd-tag-user{display:inline-flex;align-items:center;background:#E6F1FB;color:#0C447C;border-radius:4px;padding:0 5px;font-size:13px;font-weight:500;}
+.wd-tag-loc{display:inline-flex;align-items:center;background:#E1F5EE;color:#085041;border-radius:4px;padding:0 5px;font-size:13px;font-weight:500;}
+/* Table builder modal */
+.tbl-modal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:500;display:none;align-items:center;justify-content:center;}
+.tbl-modal.open{display:flex;}
+.tbl-modal-box{background:#fff;border-radius:var(--radius-lg);padding:24px 26px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.18);}
+.gp-grid{display:grid;gap:3px;width:fit-content;margin:0 auto 12px;}
+.gp-cell{width:22px;height:22px;border-radius:3px;background:#f3f4f7;border:1px solid var(--line);cursor:pointer;}
+.gp-cell.hover{background:#dbe7fc;border-color:var(--brand);}
+/* @ picker */
+.at-picker{position:absolute;background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius);z-index:200;min-width:210px;max-height:240px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.1);}
+.at-section-lbl{padding:5px 10px 2px;font-size:10px;font-weight:650;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+.at-item{padding:7px 10px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--ink);}
+.at-item:hover{background:var(--paper);}
+.at-count{font-size:10px;color:var(--ink-faint);margin-left:auto;}
+.at-sep{height:1px;background:var(--line);margin:2px 0;}
+/* Table context menu */
+.tbl-ctx{position:fixed;background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius);z-index:300;min-width:180px;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,.1);}
+.tbl-ctx-item{padding:7px 14px;cursor:pointer;font-size:13px;}
+.tbl-ctx-item:hover{background:var(--paper);}
+.tbl-ctx-sep{height:1px;background:var(--line);margin:3px 0;}
+/* Phase 2: outline panel, floating toolbar, invisibles, snippets */
+.ed-shell{display:grid;grid-template-columns:212px 1fr;gap:14px;align-items:start;}
+.ed-shell.no-outline{grid-template-columns:1fr;}
+.outline-panel{background:#fff;border:1px solid var(--line-strong);border-radius:var(--radius);padding:10px;position:sticky;top:12px;max-height:78vh;overflow:auto;}
+.outline-panel h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);}
+.ol-item{padding:5px 7px;border-radius:5px;font-size:12.5px;cursor:pointer;display:flex;gap:6px;align-items:center;}
+.ol-item:hover{background:var(--paper);}
+.ol-item.h2{padding-left:16px;} .ol-item.h3{padding-left:26px;color:var(--ink-soft);}
+.ol-item.drag-over{outline:2px dashed var(--brand);}
+.ol-grip{cursor:grab;color:var(--ink-faint);font-size:11px;}
+.float-tb{position:absolute;display:none;background:#fff;border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.13);padding:3px;gap:2px;z-index:400;}
+.float-tb.show{display:flex;}
+.editor-body.show-marks p::after{content:"¶";color:#c3c9d4;margin-left:2px;}
+.editor-body.show-marks br::after{content:"↵";color:#c3c9d4;}
+.editor-body [data-page-break]{border:none;border-top:2px dashed var(--brand);margin:14px 0;position:relative;}
+.editor-body [data-page-break]::after{content:"Page break";position:absolute;right:0;top:-9px;background:#fff;padding:0 6px;font-size:10px;color:var(--brand);}
+.editor-body img.sel-img{outline:2px solid var(--brand);}
+.snippet-bar{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.snip{font-size:11.5px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;}
+.snip:hover{border-color:var(--brand);color:var(--brand);}
+
+/* Ribbon tabs */
+.ribbon{border:1px solid var(--line-strong);border-bottom:none;background:var(--bg);}
+.rb-tabs{display:flex;flex-wrap:wrap;align-items:center;background:var(--surface);border-bottom:1px solid var(--line);}
+.rb-tab{font-family:var(--font-heading);font-size:13.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  padding:9px 15px;background:none;border:none;border-bottom:2px solid transparent;color:var(--ink-soft);
+  cursor:pointer;min-height:var(--tap);}
+.rb-tab:hover{color:var(--ink);background:rgba(29,31,32,.05);}
+.rb-tab.on{color:var(--ink);background:var(--bg);border-bottom-color:var(--brand);}
+.rb-panel{display:none;padding:8px 4px 6px;flex-wrap:wrap;align-items:flex-start;gap:0;}
+.rb-panel.on{display:flex;}
+.rb-grp{display:flex;flex-direction:column;gap:4px;padding:0 10px;border-right:1px solid var(--line);}
+.rb-grp.last{border-right:none;}
+.rb-row{display:flex;gap:3px;flex-wrap:wrap;align-items:center;}
+.rb-gname{font-family:var(--font-heading);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;
+  text-align:center;color:var(--ink-faint);}
+.tb-btn.wide{width:auto;padding:4px 9px;font-size:12.5px;}
+@media (max-width:760px){
+  .rb-grp{border-right:none;padding:0 6px;}
+  .rb-gname{text-align:left;}
+  .tb-btn,.tb-select,.color-wrap{min-height:36px;height:36px;}
+}
+</style>
+
+<form method="post" id="docForm">
+{{ csrf_input(request) | safe }}
+<input type="hidden" name="action" id="formAction" value="draft">
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+  <div>
+    <h2 style="margin:0;">{{ 'Edit draft' if doc else 'New document' }}</h2>
+    <span class="muted small">{% if doc %}Last saved {{ doc.last_edited_at[:16] }}{% else %}Not saved yet{% endif %}</span>
+  </div>
+  <div class="actions-row">
+    <a class="btn ghost small" href="/word-editor/documents">← Back</a>
+    {% if doc %}<button type="submit" class="btn danger small" onclick="setAction('discard')" onclick="return confirm('Discard this draft permanently?')">Discard draft</button>{% endif %}
+    <button type="submit" class="btn secondary" onclick="setAction('draft')">Save draft</button>
+    <button type="submit" class="btn" onclick="setAction('approve')">Self-approve &amp; publish</button>
+  </div>
+</div>
+
+<!-- Subject + receiver -->
+<div class="card" style="padding:14px 20px;margin-bottom:0;border-radius:var(--radius) var(--radius) 0 0;border-bottom:none;">
+  <div class="row">
+    <div style="flex:3;">
+      <label>Subject</label>
+      <input type="text" name="subject" id="subjectInput" value="{{ doc.subject if doc else prefill.subject | default('') }}"
+             placeholder="e.g. Site Visit Report — Al-Rajhi Chemicals" list="subj-datalist" autocomplete="off">
+      <datalist id="subj-datalist">
+        {% for s in subjects %}<option value="{{ s.subject }}">{% endfor %}
+      </datalist>
+    </div>
+    <div>
+      <label>To (receiver name)</label>
+      <input type="text" name="receiver_name" value="{{ doc.receiver_name if doc else '' }}" placeholder="Mohammed Al-Zahrani">
+    </div>
+    <div>
+      <label>Phone (optional)</label>
+      <input type="text" name="receiver_phone" value="{{ doc.receiver_phone if doc else '' }}" placeholder="+966 55 …">
+    </div>
+  </div>
+  <div style="margin-top:8px;">
+    <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-size:12.5px;letter-spacing:0;cursor:pointer;">
+      <input type="checkbox" name="save_subject" value="1" style="width:auto;"> Save subject as template
+    </label>
+  </div>
+</div>
+
+<!-- Ribbon: Home / Insert / Layout / Review -->
+<div class="ribbon">
+  <div class="rb-tabs" role="tablist">
+    <button type="button" class="rb-tab on" id="rbt-home"   onclick="wdTab('home')"   role="tab">Home</button>
+    <button type="button" class="rb-tab"    id="rbt-insert" onclick="wdTab('insert')" role="tab">Insert</button>
+    <button type="button" class="rb-tab"    id="rbt-layout" onclick="wdTab('layout')" role="tab">Layout</button>
+    <button type="button" class="rb-tab"    id="rbt-review" onclick="wdTab('review')" role="tab">Review</button>
+    <span class="muted small" id="wordCount" style="margin-left:auto;padding-right:12px;">0 words</span>
+  </div>
+
+  <div class="rb-panel on" id="rbp-home">
+    <div class="rb-grp">
+      <div class="rb-row">
+        <select class="tb-select" style="width:108px;" onchange="exec('formatBlock',this.value)">
+          <option value="p">Normal</option><option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option><option value="h3">Heading 3</option>
+        </select>
+        <select class="tb-select" style="width:100px;" onchange="exec('fontName',this.value)">
+          <option value="sans-serif">Sans-serif</option><option value="serif">Serif</option>
+          <option value="monospace">Monospace</option><option value="Arial">Arial</option>
+          <option value="Times New Roman">Times New Roman</option>
+        </select>
+        <select class="tb-select" style="width:60px;" onchange="exec('fontSize',this.value)">
+          <option value="1">8pt</option><option value="2">9pt</option>
+          <option value="3" selected>11pt</option><option value="4">14pt</option>
+          <option value="5">18pt</option><option value="6">24pt</option>
+        </select>
+        <select class="tb-select" style="width:118px;" id="quickStyle" onchange="applyQuickStyle(this.value);this.selectedIndex=0;">
+          <option value="">Quick styles…</option>
+          <option value="title">Title</option><option value="subtitle">Subtitle</option>
+          <option value="section">Section heading</option><option value="quote">Quote</option>
+          <option value="caption">Caption</option><option value="normal">Normal text</option>
+        </select>
+      </div>
+      <div class="rb-gname">Styles</div>
+    </div>
+
+    <div class="rb-grp">
+      <div class="rb-row">
+        <button type="button" class="tb-btn" id="btn-b" title="Bold" onclick="toggleFmt('bold')"><b>B</b></button>
+        <button type="button" class="tb-btn" id="btn-i" title="Italic" onclick="toggleFmt('italic')"><i>I</i></button>
+        <button type="button" class="tb-btn" id="btn-u" title="Underline" onclick="toggleFmt('underline')"><u>U</u></button>
+        <button type="button" class="tb-btn" id="btn-s" title="Strikethrough" onclick="toggleFmt('strikeThrough')"><s>S</s></button>
+        <div class="color-wrap" title="Font colour">
+          <span style="font-size:13px;font-weight:700;line-height:1;">A</span>
+          <div class="color-bar" id="fc-bar" style="background:#dc2626;"></div>
+          <input type="color" value="#dc2626" oninput="document.getElementById('fc-bar').style.background=this.value; document.getElementById('editorBody').focus(); document.execCommand('foreColor',false,this.value);">
+        </div>
+        <div class="color-wrap" title="Highlight">
+          <span style="font-size:13px;line-height:1;background:#fef08a;padding:0 2px;">H</span>
+          <div class="color-bar" id="hl-bar" style="background:#fef08a;"></div>
+          <input type="color" value="#fef08a" oninput="document.getElementById('hl-bar').style.background=this.value; document.getElementById('editorBody').focus(); document.execCommand('hiliteColor',false,this.value);">
+        </div>
+      </div>
+      <div class="rb-gname">Text</div>
+    </div>
+
+    <div class="rb-grp">
+      <div class="rb-row">
+        <button type="button" class="tb-btn" id="btn-al" title="Align left" onclick="setAlign('justifyLeft')" style="font-size:15px;">&#8676;</button>
+        <button type="button" class="tb-btn" id="btn-ac" title="Align centre" onclick="setAlign('justifyCenter')" style="font-size:15px;">&#8679;</button>
+        <button type="button" class="tb-btn" id="btn-ar" title="Align right" onclick="setAlign('justifyRight')" style="font-size:15px;">&#8677;</button>
+        <button type="button" class="tb-btn" id="btn-aj" title="Justify" onclick="setAlign('justifyFull')" style="font-size:15px;">&#8644;</button>
+        <button type="button" class="tb-btn" title="Ordered list" onclick="exec('insertOrderedList')"><b>1.</b></button>
+        <button type="button" class="tb-btn" title="Bullet list" onclick="exec('insertUnorderedList')">&bull;</button>
+        <button type="button" class="tb-btn" title="Indent" onclick="exec('indent')" style="font-size:12px;">&#8677;</button>
+        <button type="button" class="tb-btn" title="Outdent" onclick="exec('outdent')" style="font-size:12px;">&#8676;</button>
+      </div>
+      <div class="rb-gname">Paragraph</div>
+    </div>
+
+    <div class="rb-grp last">
+      <div class="rb-row">
+        <button type="button" class="tb-btn wide" id="btn-painter" title="Format painter (double-click to keep it on)"
+                onclick="painterClick()" ondblclick="painterLock()">Painter</button>
+        <button type="button" class="tb-btn wide" title="Clear formatting" onclick="clearFormatting()">Clear format</button>
+        <button type="button" class="tb-btn wide" title="Paste without formatting (Ctrl+Shift+V)" onclick="pastePlainPrompt()">Paste plain</button>
+        <button type="button" class="tb-btn" onclick="exec('undo')" title="Undo">&#8617;</button>
+        <button type="button" class="tb-btn" onclick="exec('redo')" title="Redo">&#8618;</button>
+      </div>
+      <div class="rb-gname">Editing</div>
+    </div>
+  </div>
+
+  <div class="rb-panel" id="rbp-insert">
+    <div class="rb-grp">
+      <div class="rb-row">
+        <button type="button" class="tb-btn wide" onclick="openTableModal()">&#8862; Table</button>
+        <button type="button" class="tb-btn wide" onclick="document.getElementById('imgFileInput').click()">&#9634; Photo</button>
+        <button type="button" class="tb-btn wide" onclick="insertLink()">Link</button>
+      </div>
+      <div class="rb-gname">Objects</div>
+    </div>
+    <div class="rb-grp last">
+      <div class="rb-row">
+        <button type="button" class="tb-btn wide" title="Type @ in the document to mention a person or a site"
+                onclick="document.getElementById('editorBody').focus();document.execCommand('insertText',false,'@');">@ Mention</button>
+        <button type="button" class="tb-btn wide" title="Insert page break (Ctrl+Enter)" onclick="insertPageBreak()">Page break</button>
+      </div>
+      <div class="rb-gname">References</div>
+    </div>
+  </div>
+
+  <div class="rb-panel" id="rbp-layout">
+    <div class="rb-grp">
+      <div class="rb-row">
+        <select class="tb-select" style="width:104px;" id="orientSel" title="Page orientation" onchange="saveSettings()">
+          <option value="portrait">Portrait</option><option value="landscape">Landscape</option>
+        </select>
+        <select class="tb-select" style="width:100px;" id="marginSel" title="Page margins" onchange="saveSettings()">
+          <option value="normal">Normal</option><option value="narrow">Narrow</option><option value="wide">Wide</option>
+        </select>
+      </div>
+      <div class="rb-gname">Page setup</div>
+    </div>
+    <div class="rb-grp">
+      <div class="rb-row">
+        <select class="tb-select" style="width:104px;" id="scaleSel" title="Print scale" onchange="saveSettings()">
+          <option value="100">Scale 100%</option><option value="90">90%</option>
+          <option value="80">80%</option><option value="70">70%</option>
+        </select>
+        <button type="button" class="tb-btn wide" title="Fit to one page" onclick="fitOnePage()">Fit 1 page</button>
+      </div>
+      <div class="rb-gname">Fit</div>
+    </div>
+    <div class="rb-grp last">
+      <div class="rb-row">
+        <button type="button" class="tb-btn wide" title="Left-to-right" onclick="setDir('ltr')">LTR</button>
+        <button type="button" class="tb-btn wide" title="Right-to-left (Arabic)" onclick="setDir('rtl')">RTL</button>
+      </div>
+      <div class="rb-gname">Direction</div>
+    </div>
+  </div>
+
+  <div class="rb-panel" id="rbp-review">
+    <div class="rb-grp last">
+      <div class="rb-row">
+        <button type="button" class="tb-btn wide" id="btn-marks" title="Show invisibles" onclick="toggleMarks()">&para; Marks</button>
+        <button type="button" class="tb-btn wide" id="btn-outline" title="Toggle outline panel" onclick="toggleOutline()">Outline</button>
+      </div>
+      <div class="rb-gname">View</div>
+    </div>
+  </div>
+</div>
+
+<!-- Editor body + outline -->
+<div class="ed-shell" id="edShell">
+<aside class="outline-panel" id="outlinePanel">
+  <h4>Outline</h4>
+  <div id="outlineList"><div class="muted small">Add a heading to build the outline.</div></div>
+  <h4 style="margin-top:14px;">Snippets</h4>
+  <div class="snippet-bar" id="snippetBar"></div>
+</aside>
+<div>
+<div class="editor-body" id="editorBody" contenteditable="true"
+     onkeyup="updateState(); handleAtKey(event)"
+     onmouseup="updateState()"
+     oncontextmenu="handleCtxMenu(event)">
+  {{ (doc.content_json if doc else prefill.content_json if prefill else '') | safe }}
+</div>
+</div>
+</div>
+<div class="float-tb" id="floatTb">
+  <button type="button" class="tb-btn" onclick="toggleFmt('bold')"><b>B</b></button>
+  <button type="button" class="tb-btn" onclick="toggleFmt('italic')"><i>I</i></button>
+  <button type="button" class="tb-btn" onclick="toggleFmt('underline')"><u>U</u></button>
+  <button type="button" class="tb-btn" onclick="exec('hiliteColor','#fef08a')" style="background:#fef08a;">H</button>
+  <button type="button" class="tb-btn" onclick="insertLink()">🔗</button>
+  <button type="button" class="tb-btn" onclick="clearFormatting()">✕</button>
+</div>
+<input type="hidden" name="content_html" id="contentHidden">
+<input type="file" id="imgFileInput" accept=".jpg,.jpeg,.png,.webp" style="display:none" onchange="handleImgUpload(event)">
+
+<div class="form-actions" style="justify-content:space-between;">
+  <span class="muted small" id="saveStatus">Auto-save: waiting for first change…</span>
+  <div class="actions-row">
+    <button type="submit" class="btn secondary" onclick="setAction('draft')">Save draft</button>
+    <button type="submit" class="btn" onclick="setAction('approve')">Self-approve &amp; publish</button>
+  </div>
+</div>
+</form>
+
+<!-- Table builder modal -->
+<div class="tbl-modal" id="tblModal">
+  <div class="tbl-modal-box">
+    <h3 style="margin-bottom:14px;">Insert table</h3>
+    <div style="text-align:center;font-size:13px;color:var(--ink-soft);margin-bottom:8px;" id="gpLabel">Hover to select size</div>
+    <div class="gp-grid" id="gpGrid"></div>
+    <div class="row" style="gap:10px;margin-bottom:14px;">
+      <div><label>Rows</label><input type="number" id="tblRows" min="1" max="20" value="3" style="width:80px;" oninput="syncInput()"></div>
+      <div><label>Columns</label><input type="number" id="tblCols" min="1" max="10" value="3" style="width:80px;" oninput="syncInput()"></div>
+      <div style="display:flex;align-items:flex-end;padding-bottom:2px;">
+        <label style="display:flex;align-items:center;gap:5px;text-transform:none;font-size:12.5px;letter-spacing:0;cursor:pointer;">
+          <input type="checkbox" id="tblHeader" checked style="width:auto;"> Header row
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" class="btn ghost small" onclick="document.getElementById('tblModal').classList.remove('open')">Cancel</button>
+      <button type="button" class="btn small" onclick="doInsertTable()">Insert table</button>
+    </div>
+  </div>
+</div>
+
+<!-- Table context menu -->
+<div class="tbl-ctx" id="tblCtx" style="display:none;">
+  <div class="tbl-ctx-item" onclick="tblAct('addRowAbove')">↑ Add row above</div>
+  <div class="tbl-ctx-item" onclick="tblAct('addRowBelow')">↓ Add row below</div>
+  <div class="tbl-ctx-sep"></div>
+  <div class="tbl-ctx-item" onclick="tblAct('addColLeft')">← Add column left</div>
+  <div class="tbl-ctx-item" onclick="tblAct('addColRight')">→ Add column right</div>
+  <div class="tbl-ctx-sep"></div>
+  <div class="tbl-ctx-item" onclick="tblAct('delRow')" style="color:var(--bad);">✕ Delete row</div>
+  <div class="tbl-ctx-item" onclick="tblAct('delCol')" style="color:var(--bad);">✕ Delete column</div>
+  <div class="tbl-ctx-item" onclick="tblAct('delTable')" style="color:var(--bad);">✕ Delete table</div>
+</div>
+
+<!-- @ picker -->
+<div class="at-picker" id="atPicker" style="display:none;"></div>
+
+<script>
+const MENTION_LIST = {{ mention_list | tojson }};
+let ctxCell=null, ctxTable=null, gpHoverR=3, gpHoverC=3;
+
+/* ── FORM SUBMIT ── */
+function setAction(a){ document.getElementById('formAction').value=a; syncContent(); }
+function syncContent(){ document.getElementById('contentHidden').value=document.getElementById('editorBody').innerHTML; }
+document.getElementById('docForm').addEventListener('submit', syncContent);
+
+/* ── FORMAT ── */
+function exec(cmd,val){ document.getElementById('editorBody').focus(); document.execCommand(cmd,false,val||null); updateState(); }
+function toggleFmt(cmd){ exec(cmd); }
+function setAlign(cmd){
+  exec(cmd);
+  ['btn-al','btn-ac','btn-ar','btn-aj'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  const m={'justifyLeft':'btn-al','justifyCenter':'btn-ac','justifyRight':'btn-ar','justifyFull':'btn-aj'};
+  if(m[cmd]) document.getElementById(m[cmd]).classList.add('on');
+}
+function updateState(){
+  [['bold','btn-b'],['italic','btn-i'],['underline','btn-u'],['strikeThrough','btn-s']].forEach(([cmd,id])=>{
+    const el=document.getElementById(id); if(el) el.classList.toggle('on',document.queryCommandState(cmd));
+  });
+}
+function insertLink(){
+  const u=prompt('Enter URL:','https://'); if(u){ document.getElementById('editorBody').focus(); document.execCommand('createLink',false,u); }
+}
+
+/* ── TABLE BUILDER ── */
+const GP_R=8,GP_C=10;
+function buildGrid(){
+  const g=document.getElementById('gpGrid'); g.style.gridTemplateColumns=`repeat(${GP_C},22px)`; g.innerHTML='';
+  for(let r=1;r<=GP_R;r++) for(let c=1;c<=GP_C;c++){
+    const cell=document.createElement('div'); cell.className='gp-cell'; cell.dataset.r=r; cell.dataset.c=c;
+    cell.onmouseover=()=>{ gpHoverR=r;gpHoverC=c;refreshGrid();syncGridToInput(); };
+    cell.onclick=doInsertTable; g.appendChild(cell);
+  }
+}
+function refreshGrid(){
+  document.querySelectorAll('.gp-cell').forEach(c=>{ const r=+c.dataset.r,col=+c.dataset.c; c.classList.toggle('hover',r<=gpHoverR&&col<=gpHoverC); });
+  document.getElementById('gpLabel').textContent=gpHoverR&&gpHoverC?`${gpHoverR} × ${gpHoverC} table`:'Hover to select size';
+}
+function syncGridToInput(){ document.getElementById('tblRows').value=gpHoverR; document.getElementById('tblCols').value=gpHoverC; }
+function syncInput(){ gpHoverR=+document.getElementById('tblRows').value||3; gpHoverC=+document.getElementById('tblCols').value||3; refreshGrid(); }
+function openTableModal(){ buildGrid();gpHoverR=3;gpHoverC=3;refreshGrid(); document.getElementById('tblModal').classList.add('open'); }
+function doInsertTable(){
+  const rows=+document.getElementById('tblRows').value||3, cols=+document.getElementById('tblCols').value||3;
+  const hdr=document.getElementById('tblHeader').checked;
+  let html='<table border="1" style="border-collapse:collapse;margin:8px 0;"><tbody>';
+  for(let r=0;r<rows;r++){
+    html+='<tr>';
+    for(let c=0;c<cols;c++){
+      const tag=hdr&&r===0?'th':'td';
+      const sty=hdr&&r===0?'border:1px solid #cbd0d9;padding:6px 10px;background:#f3f4f7;font-weight:600;min-width:70px;':'border:1px solid #cbd0d9;padding:6px 10px;min-width:70px;';
+      html+=`<${tag} style="${sty}"><br></${tag}>`;
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table><p><br></p>';
+  document.getElementById('editorBody').focus(); document.execCommand('insertHTML',false,html);
+  document.getElementById('tblModal').classList.remove('open');
+}
+
+/* ── TABLE CONTEXT MENU ── */
+function handleCtxMenu(e){
+  const cell=e.target.closest('td,th'); if(!cell){closeTblCtx();return;}
+  e.preventDefault(); ctxCell=cell; ctxTable=cell.closest('table');
+  const m=document.getElementById('tblCtx'); m.style.display='block'; m.style.top=e.clientY+'px'; m.style.left=e.clientX+'px';
+}
+function closeTblCtx(){ document.getElementById('tblCtx').style.display='none'; }
+function tblAct(action){
+  if(!ctxCell||!ctxTable){closeTblCtx();return;}
+  const row=ctxCell.closest('tr'), tbody=ctxTable.querySelector('tbody')||ctxTable;
+  const rows=[...tbody.querySelectorAll('tr')], ri=rows.indexOf(row);
+  const cells=[...row.querySelectorAll('td,th')], ci=cells.indexOf(ctxCell), colCount=cells.length;
+  if(action==='addRowBelow'||action==='addRowAbove'){
+    const nr=document.createElement('tr');
+    for(let c=0;c<colCount;c++){const td=document.createElement('td');td.style.cssText='border:1px solid #cbd0d9;padding:6px 10px;min-width:70px;';td.innerHTML='<br>';nr.appendChild(td);}
+    action==='addRowBelow'?row.after(nr):row.before(nr);
+  }
+  if(action==='addColLeft'||action==='addColRight'){
+    rows.forEach((tr,i)=>{
+      const tds=[...tr.querySelectorAll('td,th')], ref=tds[ci];
+      const tag=i===0&&ctxTable.querySelector('th')?'th':'td';
+      const nc=document.createElement(tag);
+      nc.style.cssText=tag==='th'?'border:1px solid #cbd0d9;padding:6px 10px;background:#f3f4f7;font-weight:600;min-width:70px;':'border:1px solid #cbd0d9;padding:6px 10px;min-width:70px;';
+      nc.innerHTML='<br>'; action==='addColRight'?ref.after(nc):ref.before(nc);
+    });
+  }
+  if(action==='delRow'){ if(rows.length>1)row.remove(); else alert('Cannot delete the only row.'); }
+  if(action==='delCol'){ if(colCount>1)rows.forEach(tr=>{const tds=[...tr.querySelectorAll('td,th')];if(tds[ci])tds[ci].remove();}); else alert('Cannot delete the only column.'); }
+  if(action==='delTable'){ if(confirm('Delete this table?'))ctxTable.remove(); }
+  closeTblCtx();
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#tblCtx'))closeTblCtx(); });
+document.addEventListener('click',e=>{ if(!e.target.closest('#atPicker')&&!e.target.closest('#editorBody'))document.getElementById('atPicker').style.display='none'; });
+
+/* ── IMAGE UPLOAD ── */
+function handleImgUpload(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    document.getElementById('editorBody').focus();
+    document.execCommand('insertHTML',false,`<img src="${ev.target.result}" style="max-width:100%;max-height:300px;border-radius:6px;margin:6px 0;display:block;" alt=""><p><br></p>`);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ── @ PICKER ── */
+let atStart=null;
+function handleAtKey(e){
+  const sel=window.getSelection(); if(!sel.rangeCount)return;
+  const range=sel.getRangeAt(0);
+  const node=range.startContainer;
+  const text=node.textContent||'';
+  const pos=range.startOffset;
+  const before=text.slice(0,pos);
+  const lastAt=before.lastIndexOf('@');
+  if(lastAt<0){document.getElementById('atPicker').style.display='none';return;}
+  const query=before.slice(lastAt+1);
+  if(/\s/.test(query)){document.getElementById('atPicker').style.display='none';return;}
+  atStart={node,offset:lastAt};
+  showAtPicker(query, range);
+}
+function showAtPicker(query, range){
+  const q=query.toLowerCase();
+  const users=MENTION_LIST.users.filter(u=>u.name.toLowerCase().includes(q));
+  const locs=MENTION_LIST.locations.filter(l=>l.name.toLowerCase().includes(q));
+  if(!users.length&&!locs.length){document.getElementById('atPicker').style.display='none';return;}
+  const picker=document.getElementById('atPicker');
+  let html='';
+  if(users.length){
+    html+='<div class="at-section-lbl">People</div>';
+    users.slice(0,8).forEach(u=>{
+      html+=`<div class="at-item" onclick="insertAtTag('user',${u.id},'${u.name.replace(/'/g,"\\'")}')">
+        <span style="width:22px;height:22px;border-radius:50%;background:#E6F1FB;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#0C447C;flex-shrink:0;">${u.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</span>
+        ${u.name}<span class="at-count">${u.locations||''}</span></div>`;
+    });
+  }
+  if(users.length&&locs.length) html+='<div class="at-sep"></div>';
+  if(locs.length){
+    html+='<div class="at-section-lbl">Locations</div>';
+    locs.slice(0,6).forEach(l=>{
+      html+=`<div class="at-item" onclick="insertAtTag('location',${l.id},'${l.name.replace(/'/g,"\\'")}')">
+        📍 ${l.name}<span class="at-count">${l.user_count} users</span></div>`;
+    });
+  }
+  picker.innerHTML=html;
+  const rect=range.getBoundingClientRect();
+  picker.style.display='block';
+  picker.style.top=(rect.bottom+window.scrollY+4)+'px';
+  picker.style.left=(rect.left+window.scrollX)+'px';
+}
+function insertAtTag(type,id,name){
+  document.getElementById('atPicker').style.display='none';
+  if(!atStart)return;
+  const node=atStart.node, offset=atStart.offset;
+  const before=node.textContent.slice(0,offset);
+  const after=node.textContent.slice(node.textContent.indexOf('@',offset)+1+name.length+ (node.textContent.slice(offset+1).indexOf(' ')>=0?0:0) );
+  const cls=type==='user'?'wd-tag-user':'wd-tag-loc';
+  const tag=document.createElement('span');
+  tag.className=cls; tag.contentEditable='false';
+  tag.dataset.tagType=type; tag.dataset.tagId=id;
+  tag.textContent='@'+name;
+  const range=document.createRange();
+  range.setStart(node,offset);
+  range.setEnd(node,node.textContent.length);
+  range.deleteContents();
+  node.textContent=before;
+  node.after(tag);
+  const space=document.createTextNode(' ');
+  tag.after(space);
+  const sel=window.getSelection();
+  const r2=document.createRange(); r2.setStartAfter(space); r2.collapse(true);
+  sel.removeAllRanges(); sel.addRange(r2);
+  atStart=null;
+}
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 2 — autosave, outline, painter, layout, RTL, snippets, shortcuts
+   ══════════════════════════════════════════════════════════════════════ */
+const ED = document.getElementById('editorBody');
+const DOC_KEY = 'wd-autosave-{{ doc.id if doc else "new" }}';
+
+/* ── AUTOSAVE & RECOVERY ── */
+let autosaveTimer=null, lastSaved='';
+function autosaveNow(reason){
+  try{
+    const html=ED.innerHTML;
+    if(html===lastSaved) return;
+    localStorage.setItem(DOC_KEY, JSON.stringify({
+      html, subject:document.getElementById('subjectInput').value, at:Date.now()
+    }));
+    lastSaved=html;
+    const t=new Date().toLocaleTimeString();
+    document.getElementById('saveStatus').textContent='Recovery copy saved '+t+' (browser only — click Save draft to store it)';
+  }catch(e){ document.getElementById('saveStatus').textContent='Recovery copy unavailable (browser storage full)'; }
+}
+function scheduleAutosave(){ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>autosaveNow('idle'),1500); }
+setInterval(()=>autosaveNow('tick'), 20000);
+window.addEventListener('beforeunload', ()=>autosaveNow('unload'));
+document.getElementById('docForm').addEventListener('submit', ()=>{ try{localStorage.removeItem(DOC_KEY);}catch(e){} });
+
+function offerRecovery(){
+  let raw=null; try{ raw=localStorage.getItem(DOC_KEY);}catch(e){ return; }
+  if(!raw) return;
+  let saved; try{ saved=JSON.parse(raw);}catch(e){ return; }
+  if(!saved || !saved.html || saved.html===ED.innerHTML) return;
+  const when=new Date(saved.at).toLocaleString();
+  const bar=document.createElement('div');
+  bar.className='alert';
+  bar.style.cssText='margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;align-items:center;';
+  bar.innerHTML='<span>Unsaved work from '+when+' was recovered from this browser.</span>';
+  const keep=document.createElement('button'); keep.type='button'; keep.className='btn small'; keep.textContent='Restore it';
+  keep.onclick=()=>{ ED.innerHTML=saved.html; if(saved.subject)document.getElementById('subjectInput').value=saved.subject; bar.remove(); refreshAll(); };
+  const drop=document.createElement('button'); drop.type='button'; drop.className='btn ghost small'; drop.textContent='Discard';
+  drop.onclick=()=>{ try{localStorage.removeItem(DOC_KEY);}catch(e){} bar.remove(); };
+  const wrap=document.createElement('span'); wrap.append(keep,drop);
+  bar.append(wrap);
+  ED.parentNode.insertBefore(bar, ED);
+}
+
+/* ── PASTE WITHOUT FORMATTING ── */
+ED.addEventListener('paste', e=>{
+  const plainOnly = e.shiftKey || window.__forcePlain;
+  const html=e.clipboardData.getData('text/html');
+  if(plainOnly || !html){
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  }else{
+    e.preventDefault();
+    const clean=html.replace(/<!--[\s\S]*?-->/g,'')
+                    .replace(/<(script|style|meta|link)[\s\S]*?<\/\1>/gi,'')
+                    .replace(/\son\w+\s*=\s*"[^"]*"/gi,'')
+                    .replace(/\sclass\s*=\s*"Mso[^"]*"/gi,'');
+    document.execCommand('insertHTML', false, clean);
+  }
+  window.__forcePlain=false;
+  refreshAll();
+});
+function pastePlainPrompt(){
+  window.__forcePlain=true;
+  ED.focus();
+  document.getElementById('saveStatus').textContent='Next paste (Ctrl+V) will drop all formatting.';
+}
+
+/* ── FORMAT PAINTER ── */
+let painter=null, painterSticky=false;
+function currentInlineStyle(){
+  const sel=window.getSelection(); if(!sel.rangeCount) return null;
+  let node=sel.getRangeAt(0).startContainer;
+  if(node.nodeType===3) node=node.parentElement;
+  const cs=getComputedStyle(node);
+  return {color:cs.color,backgroundColor:cs.backgroundColor,fontWeight:cs.fontWeight,
+          fontStyle:cs.fontStyle,fontFamily:cs.fontFamily,fontSize:cs.fontSize,
+          textDecoration:cs.textDecorationLine};
+}
+function painterClick(){
+  if(painter){ painter=null; painterSticky=false; document.getElementById('btn-painter').classList.remove('on'); return; }
+  painter=currentInlineStyle();
+  document.getElementById('btn-painter').classList.add('on');
+  document.getElementById('saveStatus').textContent='Format copied — select text to paint it.';
+}
+function painterLock(){ painterClick(); painterSticky=true; }
+function applyPainter(){
+  if(!painter) return;
+  const sel=window.getSelection(); if(!sel.rangeCount||sel.isCollapsed) return;
+  const span=document.createElement('span');
+  Object.assign(span.style, painter);
+  try{ sel.getRangeAt(0).surroundContents(span); }catch(e){ return; }
+  if(!painterSticky){ painter=null; document.getElementById('btn-painter').classList.remove('on'); }
+  refreshAll();
+}
+
+/* ── QUICK STYLES ── */
+const QS={
+  title:{block:'h1',style:'font-size:22pt;font-weight:700;margin:0 0 6px;'},
+  subtitle:{block:'h2',style:'font-size:15pt;font-weight:600;color:#5a6472;margin:0 0 10px;'},
+  section:{block:'h3',style:'font-size:13pt;font-weight:700;margin:14px 0 5px;'},
+  quote:{block:'blockquote',style:'border-left:3px solid #cbd0d9;padding-left:12px;color:#5a6472;font-style:italic;margin:10px 0;'},
+  caption:{block:'p',style:'font-size:9pt;color:#5a6472;text-align:center;margin:4px 0 12px;'},
+  normal:{block:'p',style:'font-size:11pt;font-weight:400;font-style:normal;color:inherit;margin:0 0 8px;'}
+};
+function applyQuickStyle(key){
+  const q=QS[key]; if(!q) return;
+  ED.focus();
+  document.execCommand('formatBlock', false, q.block);
+  const sel=window.getSelection(); if(!sel.rangeCount) return;
+  let node=sel.getRangeAt(0).startContainer;
+  if(node.nodeType===3) node=node.parentElement;
+  const block=node.closest('h1,h2,h3,p,blockquote'); if(block) block.setAttribute('style', q.style);
+  refreshAll();
+}
+function clearFormatting(){
+  ED.focus();
+  document.execCommand('removeFormat');
+  const sel=window.getSelection();
+  if(sel.rangeCount && !sel.isCollapsed){
+    const frag=sel.getRangeAt(0).cloneContents();
+    frag.querySelectorAll&&frag.querySelectorAll('[style]').forEach(el=>el.removeAttribute('style'));
+  }
+  refreshAll();
+}
+
+/* ── PAGE BREAK / LAYOUT / SCALE ── */
+function insertPageBreak(){
+  ED.focus();
+  document.execCommand('insertHTML', false, '<hr data-page-break="1"><p><br></p>');
+  refreshAll();
+}
+function settingsNode(){
+  let n=ED.querySelector('[data-doc-settings]');
+  if(!n){ n=document.createElement('div'); n.setAttribute('data-doc-settings','1'); n.style.display='none'; ED.appendChild(n); }
+  return n;
+}
+function saveSettings(){
+  const n=settingsNode();
+  n.setAttribute('data-orient', document.getElementById('orientSel').value);
+  n.setAttribute('data-margin', document.getElementById('marginSel').value);
+  n.setAttribute('data-scale', document.getElementById('scaleSel').value);
+  scheduleAutosave();
+}
+function loadSettings(){
+  const n=ED.querySelector('[data-doc-settings]'); if(!n) return;
+  document.getElementById('orientSel').value=n.getAttribute('data-orient')||'portrait';
+  document.getElementById('marginSel').value=n.getAttribute('data-margin')||'normal';
+  document.getElementById('scaleSel').value=n.getAttribute('data-scale')||'100';
+}
+function fitOnePage(){
+  /* A4 portrait usable height ≈ 247mm ≈ 934px at 96dpi. */
+  const usable=934*(document.getElementById('orientSel').value==='landscape'?0.66:1);
+  const h=ED.scrollHeight;
+  let pct=100;
+  if(h>usable) pct=Math.max(60, Math.floor((usable/h)*100));
+  const opts=[100,90,80,70];
+  const pick=opts.reduce((a,b)=>Math.abs(b-pct)<Math.abs(a-pct)?b:a);
+  document.getElementById('scaleSel').value=String(pick);
+  saveSettings();
+  document.getElementById('saveStatus').textContent =
+    h>usable ? ('Print scale set to '+pick+'% to fit one page.')
+             : 'Already fits on one page — scale left at 100%.';
+}
+
+/* ── RTL / LTR ── */
+function setDir(dir){
+  ED.focus();
+  const sel=window.getSelection();
+  let node=sel.rangeCount?sel.getRangeAt(0).startContainer:null;
+  if(node && node.nodeType===3) node=node.parentElement;
+  const block=node&&node.closest?node.closest('p,h1,h2,h3,li,td,th,blockquote,div'):null;
+  if(block && block!==ED){ block.setAttribute('dir',dir); block.style.textAlign = dir==='rtl'?'right':'left'; }
+  else { ED.setAttribute('dir',dir); }
+  refreshAll();
+}
+
+/* ── SHOW INVISIBLES / OUTLINE PANEL ── */
+function toggleMarks(){
+  ED.classList.toggle('show-marks');
+  document.getElementById('btn-marks').classList.toggle('on', ED.classList.contains('show-marks'));
+}
+function toggleOutline(){
+  const shell=document.getElementById('edShell');
+  shell.classList.toggle('no-outline');
+  document.getElementById('outlinePanel').style.display = shell.classList.contains('no-outline')?'none':'block';
+}
+
+/* ── OUTLINE + DRAG-AND-DROP SECTIONS ── */
+function buildOutline(){
+  const list=document.getElementById('outlineList');
+  const heads=[...ED.querySelectorAll('h1,h2,h3')];
+  if(!heads.length){ list.innerHTML='<div class="muted small">Add a heading to build the outline.</div>'; return; }
+  list.innerHTML='';
+  heads.forEach((h,i)=>{
+    if(!h.id) h.id='wd-h-'+i;
+    const item=document.createElement('div');
+    item.className='ol-item '+h.tagName.toLowerCase();
+    item.draggable=true; item.dataset.target=h.id;
+    item.innerHTML='<span class="ol-grip">⋮⋮</span><span>'+(h.textContent.trim()||'(untitled)').slice(0,40)+'</span>';
+    item.onclick=()=>h.scrollIntoView({behavior:'smooth',block:'center'});
+    item.ondragstart=e=>{ e.dataTransfer.setData('text/plain', h.id); };
+    item.ondragover=e=>{ e.preventDefault(); item.classList.add('drag-over'); };
+    item.ondragleave=()=>item.classList.remove('drag-over');
+    item.ondrop=e=>{ e.preventDefault(); item.classList.remove('drag-over');
+      moveSection(e.dataTransfer.getData('text/plain'), h.id); };
+    list.appendChild(item);
+  });
+}
+function sectionNodes(headId){
+  const head=document.getElementById(headId); if(!head) return [];
+  const nodes=[head]; let n=head.nextSibling;
+  while(n){ if(n.nodeType===1 && /^H[1-3]$/.test(n.tagName)) break; nodes.push(n); n=n.nextSibling; }
+  return nodes;
+}
+function moveSection(fromId, toId){
+  if(fromId===toId) return;
+  const moving=sectionNodes(fromId), target=document.getElementById(toId);
+  if(!moving.length||!target) return;
+  const frag=document.createDocumentFragment();
+  moving.forEach(n=>frag.appendChild(n));
+  target.parentNode.insertBefore(frag, target);
+  refreshAll();
+}
+
+/* ── SNIPPETS ── */
+const SNIPPETS=[
+  ['Greeting','<p>Dear Sir/Madam,</p><p><br></p>'],
+  ['Closing','<p><br></p><p>Best regards,</p>'],
+  ['Signature block','<p><br></p><table style="border-collapse:collapse;"><tbody><tr><td style="padding:6px 24px 6px 0;">Prepared by: ______________</td><td style="padding:6px 0;">Approved by: ______________</td></tr></tbody></table>'],
+  ['Terms line','<p style="font-size:9pt;color:#5a6472;">Prices valid 30 days. VAT excluded unless stated.</p>'],
+  ['2-col table','<table border="1" style="border-collapse:collapse;"><tbody><tr><th style="border:1px solid #cbd0d9;padding:6px 10px;background:#f3f4f7;">Item</th><th style="border:1px solid #cbd0d9;padding:6px 10px;background:#f3f4f7;">Detail</th></tr><tr><td style="border:1px solid #cbd0d9;padding:6px 10px;"><br></td><td style="border:1px solid #cbd0d9;padding:6px 10px;"><br></td></tr></tbody></table><p><br></p>']
+];
+function buildSnippets(){
+  const bar=document.getElementById('snippetBar');
+  SNIPPETS.forEach(([label,html])=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='snip'; b.textContent=label;
+    b.onclick=()=>{ ED.focus(); document.execCommand('insertHTML',false,html); refreshAll(); };
+    bar.appendChild(b);
+  });
+}
+
+/* ── FLOATING TOOLBAR ── */
+function positionFloatTb(){
+  const tb=document.getElementById('floatTb');
+  const sel=window.getSelection();
+  if(!sel.rangeCount || sel.isCollapsed || !ED.contains(sel.anchorNode)){ tb.classList.remove('show'); return; }
+  const r=sel.getRangeAt(0).getBoundingClientRect();
+  if(!r.width && !r.height){ tb.classList.remove('show'); return; }
+  tb.classList.add('show');
+  tb.style.top=(r.top+window.scrollY-tb.offsetHeight-8)+'px';
+  tb.style.left=(r.left+window.scrollX)+'px';
+}
+
+/* ── IMAGE SIZING ── */
+ED.addEventListener('click', e=>{
+  ED.querySelectorAll('img.sel-img').forEach(i=>i.classList.remove('sel-img'));
+  if(e.target.tagName==='IMG'){
+    e.target.classList.add('sel-img');
+    document.getElementById('saveStatus').textContent='Image selected — press 1/2/3/4 for 25/50/75/100% width.';
+  }
+});
+document.addEventListener('keydown', e=>{
+  const img=ED.querySelector('img.sel-img');
+  if(img && ['1','2','3','4'].includes(e.key) && document.activeElement===ED){
+    e.preventDefault();
+    img.style.width=({'1':'25%','2':'50%','3':'75%','4':'100%'})[e.key];
+    img.style.maxWidth='100%'; img.style.height='auto';
+    refreshAll();
+  }
+});
+
+/* ── KEYBOARD SHORTCUTS ── */
+document.addEventListener('keydown', e=>{
+  const mod=e.ctrlKey||e.metaKey;
+  if(!mod) return;
+  if(e.key==='s'){ e.preventDefault(); setAction('draft'); document.getElementById('docForm').submit(); }
+  else if(e.key==='k'){ e.preventDefault(); insertLink(); }
+  else if(e.key==='Enter'){ e.preventDefault(); insertPageBreak(); }
+  else if(e.shiftKey && (e.key==='V'||e.key==='v')){ window.__forcePlain=true; }
+  else if(e.key===' '){ e.preventDefault(); clearFormatting(); }
+});
+
+/* ── WORD COUNT + REFRESH ── */
+function refreshAll(){
+  const words=(ED.innerText||'').trim().split(/\s+/).filter(Boolean).length;
+  const chars=(ED.innerText||'').length;
+  document.getElementById('wordCount').textContent=words+' words · '+chars+' chars';
+  buildOutline();
+  scheduleAutosave();
+}
+ED.addEventListener('input', refreshAll);
+ED.addEventListener('mouseup', ()=>{ positionFloatTb(); if(painter) applyPainter(); });
+ED.addEventListener('keyup', positionFloatTb);
+document.addEventListener('scroll', ()=>document.getElementById('floatTb').classList.remove('show'), true);
+
+window.addEventListener('load', ()=>{
+  loadSettings(); buildSnippets(); offerRecovery(); refreshAll();
+});
+
+</script>
+
+<script>
+function wdTab(name){
+  ['home','insert','layout','review'].forEach(function(k){
+    document.getElementById('rbt-'+k).classList.toggle('on', k===name);
+    document.getElementById('rbp-'+k).classList.toggle('on', k===name);
+  });
+  try{ localStorage.setItem('wd_ribbon_tab', name); }catch(e){}
+}
+(function(){
+  var t=null; try{ t=localStorage.getItem('wd_ribbon_tab'); }catch(e){}
+  if(t && document.getElementById('rbt-'+t)) wdTab(t);
+})();
+</script>
+{% endblock %}

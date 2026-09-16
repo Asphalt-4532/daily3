@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify document{% if doc_no %} {{ doc_no }}{% endif %}</title>
+<style>
+ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f3f4f6;color:#14181f;margin:0;padding:28px 16px;}
+ .box{max-width:520px;margin:0 auto;background:#fff;border-radius:14px;padding:26px 28px;box-shadow:0 1px 6px rgba(0,0,0,.09);}
+ h1{font-size:19px;margin:0 0 4px;} .sub{color:#5a6472;font-size:13px;margin-bottom:20px;}
+ .row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid #eceef2;font-size:14px;}
+ .row span:first-child{color:#5a6472;} .row span:last-child{font-weight:600;text-align:right;}
+ .ok{background:#dcfce7;color:#166534;} .warn{background:#fef3c7;color:#92400e;} .bad{background:#fee2e2;color:#991b1b;}
+ .pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:600;}
+ form{display:flex;gap:8px;margin-top:18px;}
+ input{flex:1;padding:9px 11px;border:1px solid #d4d8e0;border-radius:8px;font-size:14px;}
+ button{padding:9px 16px;border:none;border-radius:8px;background:#0f1e4d;color:#fff;font-size:14px;cursor:pointer;}
+ code{font-size:11px;word-break:break-all;color:#5a6472;}
+ .foot{text-align:center;color:#5a6472;font-size:12px;margin-top:18px;}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Document verification</h1>
+  <div class="sub">{{ profile.company_name if profile else '' }}</div>
+
+  {% if result %}
+    <div style="margin-bottom:14px;">
+      {% if result.status == 'official' %}<span class="pill ok">Genuine — official document</span>
+      {% elif result.status == 'self_approved' %}<span class="pill warn">Internal document — not manager-approved</span>
+      {% elif result.status == 'deleted' %}<span class="pill bad">Withdrawn — this document was deleted</span>
+      {% else %}<span class="pill warn">Unpublished draft</span>{% endif %}
+    </div>
+    <div class="row"><span>Document number</span><span>{{ result.doc_no }}</span></div>
+    <div class="row"><span>Subject</span><span>{{ result.subject or '—' }}</span></div>
+    <div class="row"><span>Issued to</span><span>{{ result.receiver_name or '—' }}</span></div>
+    <div class="row"><span>Prepared by</span><span>{{ result.creator_name }}</span></div>
+    {% if result.manager_name %}<div class="row"><span>Approved by</span><span>{{ result.manager_name }}</span></div>{% endif %}
+    <div class="row"><span>Approved on</span><span>{{ (result.manager_approved_at or result.self_approved_at or '')[:16] or '—' }}</span></div>
+    {% if result.official_sha %}<div class="row"><span>Content fingerprint</span><span><code>{{ result.official_sha[:32] }}</code></span></div>{% endif %}
+    <p class="sub" style="margin-top:16px;">Document contents are never shown here. This page only confirms that the number exists and what was approved.</p>
+  {% elif error %}
+    <div class="pill bad">{{ error }}</div>
+  {% else %}
+    <p class="sub">Enter the document number printed on the page (or scan its QR code).</p>
+  {% endif %}
+
+  <form method="get" action="/word-editor/verify">
+    <input type="text" name="doc_no" value="{{ doc_no }}" placeholder="WD-2026-00003" autocomplete="off">
+    <button type="submit">Verify</button>
+  </form>
+  <div class="foot">{{ profile.company_phone if profile else '' }} {% if profile and profile.website %}· {{ profile.website }}{% endif %}</div>
+</div>
+</body>
+</html>

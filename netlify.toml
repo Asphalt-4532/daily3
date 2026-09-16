@@ -1,0 +1,14 @@
+# Static showcase only - this does NOT deploy the app itself (the app is a
+# FastAPI/SQLite server and has to be self-hosted; see README.md). Netlify
+# publishes the single page in site/ so testers can look at the interface
+# without standing anything up.
+[build]
+  publish = "site"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

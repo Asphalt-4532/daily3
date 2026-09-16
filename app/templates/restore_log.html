@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <a href="/backups">← Back to backups</a>
+  <h2 class="mt-0">Restore log</h2>
+  <p class="muted" style="margin-top:-8px;">
+    This is a separate, append-only log stored outside the database. It's the one record of
+    every restore attempt that's guaranteed to survive the restore itself — the database's own
+    audit log gets replaced along with everything else when a restore happens, but this file
+    doesn't. A "started" entry with no matching "completed" entry means a restore was attempted
+    and rejected before anything was changed.
+  </p>
+  <div class="table-wrap">
+  <table>
+    <tr><th>When</th><th>Event</th><th>Backup file</th><th>By</th><th>Reason</th><th>Safety copy taken</th></tr>
+    {% for e in entries %}
+    <tr>
+      <td>{{ e.at }}</td>
+      <td>{{ e.event }}</td>
+      <td>{{ e.backup_file or '(uploaded file)' }}</td>
+      <td>{{ e.by_full_name or '—' }}{% if e.by_username %} ({{ e.by_username }}){% endif %}</td>
+      <td>{{ e.reason or '—' }}</td>
+      <td>{{ e.safety_backup or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No restores have ever been attempted on this system.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

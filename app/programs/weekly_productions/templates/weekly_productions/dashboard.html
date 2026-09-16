@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-3">
+  <div class="card stat">
+    <div class="num">{{ week_total | round(1) }}</div>
+    <div class="label">Units produced this week (since {{ week_start }})</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ week_weight | round(1) }} kg</div>
+    <div class="label">Weight this week</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ report_count_week }}</div>
+    <div class="label">Reports this week</div>
+  </div>
+</div>
+
+{% if (weight_targets.weekly and weight_targets.weekly > 0) or (weight_targets.monthly and weight_targets.monthly > 0) %}
+<div class="grid grid-2">
+  {% if weight_targets.weekly and weight_targets.weekly > 0 %}
+  {% set wpct = (week_weight / weight_targets.weekly * 100) %}
+  {% set wpct_display = wpct if wpct < 100 else 100 %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px;">
+      <span>{{ week_weight | round(1) }} kg this week</span>
+      <span>{{ wpct | round(0) }}% of {{ weight_targets.weekly | round(0) }} kg weekly target</span>
+    </div>
+    <div style="background:var(--paper); border-radius:8px; height:10px; overflow:hidden;">
+      <div style="background:var(--accent); height:10px; width:{{ wpct_display }}%;"></div>
+    </div>
+  </div>
+  {% endif %}
+  {% if weight_targets.monthly and weight_targets.monthly > 0 %}
+  {% set mpct = (month_weight / weight_targets.monthly * 100) %}
+  {% set mpct_display = mpct if mpct < 100 else 100 %}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px;">
+      <span>{{ month_weight | round(1) }} kg this month</span>
+      <span>{{ mpct | round(0) }}% of {{ weight_targets.monthly | round(0) }} kg monthly target</span>
+    </div>
+    <div style="background:var(--paper); border-radius:8px; height:10px; overflow:hidden;">
+      <div style="background:var(--accent); height:10px; width:{{ mpct_display }}%;"></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">Last 6 weeks by line</h3>
+    {% if not by_line %}
+      <div class="empty">No production recorded yet.</div>
+    {% else %}
+      {% set max_t = (by_line | map(attribute='total') | max) %}
+      <div class="table-wrap">
+      <table>
+        <tr><th>Line / Department</th><th>Total quantity</th><th></th></tr>
+        {% for row in by_line %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ row.total | round(1) }}</td>
+          <td style="width:40%;">
+            <div style="background:var(--accent); border-radius:4px; height:10px;
+                        width:{{ ((row.total / max_t * 100) | round(1)) if max_t else 0 }}%;"></div>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Last 6 weeks by material</h3>
+    {% if not by_material %}
+      <div class="empty">No production recorded yet.</div>
+    {% else %}
+      {% set max_m = (by_material | map(attribute='total') | max) %}
+      <div class="table-wrap">
+      <table>
+        <tr><th>Material</th><th>Total quantity</th><th></th></tr>
+        {% for row in by_material %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ row.total | round(1) }}</td>
+          <td style="width:40%;">
+            <div style="background:var(--accent); border-radius:4px; height:10px;
+                        width:{{ ((row.total / max_m * 100) | round(1)) if max_m else 0 }}%;"></div>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 class="mt-0">Recent reports</h3>
+    <a href="/weekly-productions/reports">View all →</a>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Report</th><th>Date</th><th>Line</th><th>Materials</th><th class="right">Total qty</th><th class="right">Weight (kg)</th><th>Shift</th></tr>
+    {% for r in recent %}
+    <tr onclick="window.location='/weekly-productions/reports/{{ r.id }}'" style="cursor:pointer;">
+      <td>{{ r.report_no }}</td>
+      <td>{{ r.report_date }}</td>
+      <td>{{ r.line_name }}</td>
+      <td>{{ r.material_types or '—' }} <span class="muted">({{ r.line_count }})</span></td>
+      <td class="right">{{ r.total_quantity | round(1) }}</td>
+      <td class="right">{{ r.total_weight | round(2) }}</td>
+      <td>{{ r.shift or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="empty">No production recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

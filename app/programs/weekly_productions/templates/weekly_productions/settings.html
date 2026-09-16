@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:560px; margin:0 auto;">
+  <h2 class="mt-0">Weight calculation</h2>
+  <p class="muted" style="margin-top:-8px;">
+    Straight pieces: weight (kg) = ((width + 2 x height + 30) / 1000) x length x thickness x factor.<br>
+    Elbows/fittings: weight (kg) = surface area (base + inside wall + outside wall) x thickness x (factor x 1000).
+  </p>
+  {% for m in material_types %}
+  <form method="post" action="/weekly-productions/settings/weight-factor" class="row" style="align-items:flex-end; margin-top:10px;">
+    {{ csrf_input(request) | safe }}
+    <input type="hidden" name="material_type" value="{{ m }}">
+    <div>
+      <label>{{ m }} factor</label>
+      <input type="number" step="0.01" min="0.01" name="value" value="{{ factors[m] }}">
+    </div>
+    <div style="flex:0 0 auto;">
+      <button class="btn secondary" type="submit">Save</button>
+    </div>
+  </form>
+  {% endfor %}
+</div>
+
+<div class="card" style="max-width:560px; margin:16px auto 0;">
+  <h2 class="mt-0">Weight targets</h2>
+  <p class="muted" style="margin-top:-8px;">
+    Shown as progress bars on the dashboard against this week's/month's produced weight. Set to 0 to hide either.
+  </p>
+  <form method="post" action="/weekly-productions/settings/weight-target" class="row" style="align-items:flex-end;">
+    {{ csrf_input(request) | safe }}
+    <input type="hidden" name="period" value="weekly">
+    <div>
+      <label>Weekly target (kg)</label>
+      <input type="number" step="1" min="0" name="value" value="{{ weight_targets.weekly }}">
+    </div>
+    <div style="flex:0 0 auto;">
+      <button class="btn secondary" type="submit">Save</button>
+    </div>
+  </form>
+  <form method="post" action="/weekly-productions/settings/weight-target" class="row" style="align-items:flex-end; margin-top:10px;">
+    {{ csrf_input(request) | safe }}
+    <input type="hidden" name="period" value="monthly">
+    <div>
+      <label>Monthly target (kg)</label>
+      <input type="number" step="1" min="0" name="value" value="{{ weight_targets.monthly }}">
+    </div>
+    <div style="flex:0 0 auto;">
+      <button class="btn secondary" type="submit">Save</button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="max-width:560px; margin:16px auto 0;">
+  <h2 class="mt-0">Lock a month</h2>
+  <p class="muted" style="margin-top:-8px;">
+    Locking a month blocks <b>new</b> production reports dated in it. Existing reports can still be
+    deleted (with a reason, as always) — correcting a mistake isn't the same as backdating new production.
+  </p>
+  <form method="post" action="/weekly-productions/settings/lock-month" class="row" style="align-items:flex-end;">
+    {{ csrf_input(request) | safe }}
+    <div>
+      <label>Month</label>
+      <input type="month" name="month" required>
+    </div>
+    <div style="flex:0 0 auto;">
+      <button class="btn danger" type="submit">Lock</button>
+    </div>
+  </form>
+
+  {% if locked_months %}
+  <div class="table-wrap" style="margin-top:14px;">
+  <table>
+    <tr><th>Month</th><th>Locked by</th><th></th><th></th></tr>
+    {% for lm in locked_months %}
+    <tr>
+      <td>{{ lm.month_label }}</td>
+      <td>{{ lm.locked_by_name }}, {{ lm.locked_at }}</td>
+      <td><a href="/weekly-productions/reports?start={{ lm.month_start }}&end={{ lm.month_end }}">Daily report</a></td>
+      <td>
+        <form method="post" action="/weekly-productions/settings/unlock-month" style="display:inline;"
+              onsubmit="return confirm('Unlock {{ lm.month }}? New reports for that month will be allowed again.');">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="month" value="{{ lm.month }}">
+          <button class="btn small secondary" type="submit">Unlock</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="muted" style="margin-top:14px;">No months are locked.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Asset Settings · {{ COMPANY_NAME }}{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+  <h2 style="margin:0;">Asset Settings</h2>
+  <a class="btn small secondary" href="/assets/">← Registry</a>
+</div>
+
+{# ── Tag format rules ────────────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:16px;">
+  <h3 class="mt-0">Asset tag format rules</h3>
+  <p class="muted small" style="margin-top:-6px;">
+    A pattern is a regular expression checked when a manager registers a new asset of that category.
+    Leave blank for free text. A bad pattern is rejected immediately at save time — it can't silently lock the registry.
+  </p>
+  <table>
+    <tr><th>Category</th><th>Pattern (regex)</th><th>Example shown in form</th><th></th></tr>
+    {% for cat, rule in tag_rules.items() %}
+    <tr>
+      <td><strong>{{ cat }}</strong></td>
+      <td>
+        <form method="post" action="/assets/settings/tag-rule" style="display:flex; gap:4px; align-items:center;">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="category" value="{{ cat }}">
+          <input type="text" name="pattern" value="{{ rule.pattern }}"
+                 placeholder="free text" style="font-family:monospace; width:200px; padding:3px 6px; font-size:12px;">
+          <input type="text" name="example" value="{{ rule.example }}"
+                 placeholder="e.g. TR-04" style="width:110px; padding:3px 6px; font-size:12px;">
+          <button class="btn small secondary" type="submit">Save</button>
+        </form>
+      </td>
+      <td class="muted small">{{ rule.example or '(any text)' }}</td>
+      <td></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{# ── Category → asset rules ──────────────────────────────────────────────── #}
+<div class="card">
+  <h3 class="mt-0">Which expense categories require an asset?</h3>
+  <p class="muted small" style="margin-top:-6px;">
+    When a user records a voucher line in a ticked category, they must pick the asset the cost is for.
+    If they hold no asset of the required type, the field is skipped (a manager reviews the unlinked line at approval time).
+    Fuel is always unticked — it's a general operating cost, not an asset cost.
+  </p>
+  <table>
+    <tr><th>Category</th><th>Requires asset?</th><th>Asset type filter</th><th></th></tr>
+    {% for c in categories %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>
+        <form method="post" action="/assets/settings/category-asset" style="display:flex; gap:6px; align-items:center;">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="category_id" value="{{ c.id }}">
+          <label style="font-weight:normal; display:flex; gap:4px; align-items:center;">
+            <input type="checkbox" name="requires_asset" value="1"
+                   {{ 'checked' if c.requires_asset }} id="req_{{ c.id }}"
+                   onchange="this.form.submit()">
+            Required
+          </label>
+          <select name="asset_category" onchange="this.form.submit()" style="padding:3px 6px; font-size:12px;">
+            <option value="">— any type —</option>
+            {% for cat in asset_categories %}
+            <option value="{{ cat }}" {{ 'selected' if c.asset_category == cat }}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+          <noscript><button type="submit" class="btn small secondary">Save</button></noscript>
+        </form>
+      </td>
+      <td class="small muted">{{ c.asset_category or '(any)' }}</td>
+      <td></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

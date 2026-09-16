@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-2">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 class="mt-0">{{ e.voucher_no or 'Draft (not yet submitted)' }}</h2>
+      <span class="badge {{ e.status }}">{{ e.status }}</span>
+    </div>
+    <table>
+      <tr><th>Date</th><td>{{ e.expense_date }}</td></tr>
+      <tr><th>Cost centre</th><td>{{ e.cost_center_name or '—' }}</td></tr>
+      <tr><th>Paid to</th><td>{{ e.paid_to or '—' }}</td></tr>
+      <tr><th>Payment mode</th><td>{{ e.payment_mode }}</td></tr>
+      <tr><th>Prepared by</th><td>{{ e.prepared_by_name }}</td></tr>
+      {% if e.status not in ['draft'] %}
+      <tr><th>Approved by</th><td>{{ e.approved_by_name or '—' }}{% if e.approved_at %} on {{ e.approved_at }}{% endif %}</td></tr>
+      {% endif %}
+      {% if e.status == 'rejected' and e.rejection_reason %}
+      <tr><th>Rejection reason</th><td>{{ e.rejection_reason }}</td></tr>
+      {% endif %}
+      {% if e.status == 'deleted' %}
+      <tr><th>Deleted by</th><td>{{ e.deleted_by_name }} on {{ e.deleted_at }}</td></tr>
+      <tr><th>Delete reason</th><td>{{ e.delete_reason }}</td></tr>
+      {% endif %}
+      {% if e.receipt_path %}
+      <tr><th>Receipt</th><td><a href="/expense-program/uploads/{{ e.receipt_path }}" target="_blank">View attached receipt</a></td></tr>
+      {% endif %}
+    </table>
+
+    <h3 style="margin-bottom:8px;">Transactions</h3>
+    {% if e.lines %}
+    <div class="table-wrap">
+    <table>
+      <tr><th>Category</th><th>Particulars</th><th class="right">Amount (excl. VAT)</th><th>VAT?</th><th class="right">Line total</th></tr>
+      {% for line in e.lines %}
+      <tr>
+        <td>{{ line.category_name }}</td>
+        <td>{{ line.particulars }}{% if line.is_vatable and line.supplier_name %} <span class="muted">({{ line.supplier_name }}, VAT: {{ line.supplier_vat }})</span>{% endif %}{% if line.employee_name %} <span class="muted">— <strong>{{ line.employee_name }}</strong>, {{ line.employee_phone }}</span>{% endif %}</td>
+        <td class="right">{{ line.amount | money }}</td>
+        <td>{{ 'Yes' if line.is_vatable else 'No' }}{% if line.is_vatable %} <span class="muted">(+{{ line.vat_amount | money }})</span>{% endif %}</td>
+        <td class="right">{{ (line.amount + line.vat_amount) | money }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">No transaction lines yet.</p>
+    {% endif %}
+    <div style="text-align:right; margin-top:8px; font-size:14px;">
+      <div class="muted">Subtotal (excl. VAT): {{ (e.total_amount - e.total_vat) | money }}</div>
+      <div class="muted">VAT: {{ e.total_vat | money }}</div>
+      <div style="font-weight:bold; font-size:16px; margin-top:2px;">Total: {{ e.total_amount | money }}</div>
+    </div>
+
+    <div class="actions-row">
+      {% if e.status != 'draft' %}
+      <a class="btn secondary" href="/expense-program/expenses/{{ e.id }}/voucher.pdf" target="_blank">Open / print voucher PDF</a>
+      {% endif %}
+
+      {% if e.status == 'draft' and can_edit_draft %}
+      <a class="btn" href="/expense-program/expenses/{{ e.id }}/edit">Edit draft</a>
+      <form method="post" action="/expense-program/expenses/{{ e.id }}/submit" style="display:inline;">
+        {{ csrf_input(request) | safe }}
+        <button class="btn" type="submit">Submit for approval</button>
+      </form>
+      <button class="btn danger" type="button" onclick="document.getElementById('discardBox').style.display='block'">Discard draft</button>
+      {% endif %}
+
+      {% if user.role in ['accountant','manager'] and e.status == 'pending' %}
+      <form method="post" action="/expense-program/expenses/{{ e.id }}/approve" style="display:inline;">
+        {{ csrf_input(request) | safe }}
+        <button class="btn" type="submit">Approve</button>
+      </form>
+      <button class="btn danger" type="button" onclick="document.getElementById('rejectBox').style.display='block'">Reject</button>
+      {% endif %}
+
+      {% if user.role == 'manager' and e.status not in ['deleted', 'draft'] %}
+      <button class="btn danger" type="button" onclick="document.getElementById('deleteBox').style.display='block'">Delete voucher</button>
+      {% endif %}
+
+      {% if can_clone %}
+      <form method="post" action="/expense-program/expenses/{{ e.id }}/clone" style="display:inline;">
+        {{ csrf_input(request) | safe }}
+        <button class="btn secondary" type="submit" title="Copy this voucher into a new draft">Duplicate</button>
+      </form>
+      {% endif %}
+
+      <a class="btn secondary" href="/expense-program/expenses">← Back to list</a>
+    </div>
+
+    {% if e.status == 'draft' and can_edit_draft %}
+    <form method="post" action="/expense-program/expenses/{{ e.id }}/discard" id="discardBox" style="display:none; margin-top:14px;"
+          onsubmit="return confirm('Discard this draft? It hasn\'t been submitted, so this permanently deletes it - there is no undo.');">
+      {{ csrf_input(request) | safe }}
+      <p class="muted" style="margin-top:0;">This draft was never submitted, so discarding it deletes it completely - unlike a submitted voucher, there's nothing to keep in the audit trail.</p>
+      <button class="btn danger" type="submit">Confirm discard</button>
+    </form>
+    {% endif %}
+
+    {% if user.role in ['accountant','manager'] and e.status == 'pending' %}
+    <form method="post" action="/expense-program/expenses/{{ e.id }}/reject" id="rejectBox" style="display:none; margin-top:14px;">
+      {{ csrf_input(request) | safe }}
+      <label>Reason for rejection</label>
+      <textarea name="reason" required></textarea>
+      <div style="margin-top:8px;">
+        <button class="btn danger" type="submit">Confirm rejection</button>
+      </div>
+    </form>
+    {% endif %}
+
+    {% if user.role == 'manager' and e.status not in ['deleted', 'draft'] %}
+    <form method="post" action="/expense-program/expenses/{{ e.id }}/delete" id="deleteBox" style="display:none; margin-top:14px;"
+          onsubmit="return confirm('Delete {{ e.voucher_no }}? It will be removed from lists and totals, but kept permanently in the audit log for compliance.');">
+      {{ csrf_input(request) | safe }}
+      <label>Reason for deletion (required — recorded in the audit log)</label>
+      <textarea name="reason" required></textarea>
+      <div style="margin-top:8px;">
+        <button class="btn danger" type="submit">Confirm delete</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Hand this voucher to someone</h3>
+    {% if can_share %}
+    <p class="muted small" style="margin-top:0;">
+      They get a notification linking straight back to this page, where the PDF
+      and the receipt already are — nothing is copied or emailed out.
+    </p>
+    <form method="post" action="/expense-program/expenses/{{ e.id }}/share">
+      {{ csrf_input(request) | safe }}
+      <label>Share with</label>
+      <div class="share-people">
+        {% for u in shareable_users %}
+        <label class="share-person">
+          <input type="checkbox" name="share_with" value="{{ u.id }}">
+          <span>{{ u.full_name }} <span class="muted small">({{ u.role }})</span></span>
+        </label>
+        {% else %}
+        <p class="muted small">No other active accounts to share with.</p>
+        {% endfor %}
+      </div>
+      <label style="margin-top:10px;">Note (optional)</label>
+      <input type="text" name="note" maxlength="500" placeholder="e.g. please book this against April">
+      <div style="margin-top:10px;">
+        <button class="btn" type="submit" {{ 'disabled' if not shareable_users }}>Share</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="muted">A voucher can be shared once it's been submitted — a draft has no voucher number yet.</p>
+    {% endif %}
+
+    {% if shares %}
+    <h4 style="margin-bottom:6px;">Already shared with</h4>
+    <ul class="share-log">
+      {% for s in shares %}
+      <li>
+        <strong>{{ s.shared_with_name }}</strong> <span class="muted small">({{ s.shared_with_role }})</span>
+        — by {{ s.shared_by_name }} on {{ s.created_at }}
+        {% if s.note %}<div class="muted small">“{{ s.note }}”</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Voucher preview</h3>
+    {% if e.status == 'draft' %}
+    <p class="muted">This voucher is still a draft - it doesn't have a voucher number yet, so there's no PDF to
+      preview. Submit it for approval to generate one.</p>
+    {% else %}
+    <div class="voucher-frame">
+      <iframe src="/expense-program/expenses/{{ e.id }}/voucher.pdf"></iframe>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

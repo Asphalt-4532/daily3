@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ doc.doc_no }} — {{ doc.subject or doc.title }}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Times New Roman",Times,serif;background:#f3f4f6;color:#14181f;}
+
+/* A4 - orientation forced from the document's own setting, never left to
+   the print dialog (which defaulted to landscape and caused the bug). */
+@page{size:A4 portrait; margin:0;}
+body.landscape .page{width:297mm;height:210mm;}
+
+.page{
+  width:210mm; height:297mm;
+  padding:10mm 12mm 8mm 12mm;
+  background:#fff;
+  display:flex; flex-direction:column;
+  page-break-after:always; break-after:page;
+  overflow:hidden;
+}
+.page:last-child{page-break-after:auto; break-after:auto;}
+
+@media screen{
+  .page{margin:16px auto; box-shadow:0 1px 6px rgba(0,0,0,.15);}
+  .actions{max-width:210mm;margin:16px auto 0;display:flex;gap:8px;}
+}
+@media print{
+  body{background:#fff;}
+  .actions{display:none;}
+  .page{margin:0; box-shadow:none;}
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+
+/* ── COMPACT HEADER (was ~52mm tall, now ~20mm) ───────────────────── */
+.pg-header{
+  display:flex; align-items:flex-start; gap:10px;
+  border-bottom:1.5pt solid #0f1e4d;
+  padding-bottom:4px;
+}
+.pg-header .logo{max-width:78px;max-height:34px;object-fit:contain;}
+.pg-ident{flex:1;min-width:0;font-family:sans-serif;line-height:1.25;}
+.company-name{font-size:11pt;font-weight:700;color:#0f1e4d;}
+.company-sub{font-size:7.5pt;color:#5a6472;}
+.qr-block{text-align:center;font-family:sans-serif;flex:0 0 auto;}
+.qr-block img{width:18mm;height:18mm;display:block;}
+.qr-caption{font-size:6.5pt;color:#5a6472;margin-top:1px;letter-spacing:.03em;}
+
+/* ── META (page 1 only) ───────────────────────────────────────────── */
+.pg-meta{
+  font-size:7.5pt;color:#5a6472;font-family:sans-serif;line-height:1.35;
+  padding:4px 0 5px; border-bottom:.75pt solid #e2e5eb;
+  display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;
+}
+.status-official{display:inline-block;background:#0f1e4d;color:#fff;font-size:6.5pt;padding:1px 7px;border-radius:3px;letter-spacing:.04em;}
+.status-internal{display:inline-block;background:#e2e5eb;color:#5a6472;font-size:6.5pt;padding:1px 7px;border-radius:3px;letter-spacing:.04em;}
+
+/* ── BODY - takes every millimetre the header gave back ───────────── */
+.pg-body{flex:1 1 auto;font-size:11pt;line-height:1.7;padding-top:7px;overflow:hidden;}
+.pg-body img{max-width:100%;}
+.pg-body table{border-collapse:collapse;}
+.pg-body td,.pg-body th{padding:3px 5px;}
+
+/* ── DISCLAIMER: pinned to the bottom, 1pt above the footer ───────── */
+.pg-disclaimer{
+  flex:0 0 auto;
+  font-size:7.5pt;color:#5a6472;font-style:italic;font-family:sans-serif;
+  line-height:1.3;
+  border-top:.75pt solid #e2e5eb;
+  padding-top:3px;
+  margin-bottom:1pt;
+}
+.pg-footer{
+  flex:0 0 auto;
+  font-size:7.5pt;color:#5a6472;font-family:sans-serif;
+  border-top:.75pt solid #e2e5eb; padding-top:3px;
+  display:flex;justify-content:space-between;gap:10px;
+}
+</style>
+</head>
+<body>
+
+<div class="actions">
+  <a href="/word-editor/documents/{{ doc.id }}" style="padding:7px 14px;border:1px solid #e2e5eb;border-radius:7px;font-family:sans-serif;font-size:13px;color:#5a6472;text-decoration:none;background:#fff;">← Back</a>
+  <button onclick="window.print()" style="padding:7px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;font-family:sans-serif;font-size:13px;cursor:pointer;font-weight:600;">Print</button>
+</div>
+
+<!-- Source content + page furniture templates. Cloned per page by the paginator. -->
+<div id="src" style="display:none;">{{ doc.content_json | safe }}</div>
+
+<template id="tpl-header">
+  <div class="pg-header">
+    {% if profile and profile.logo_path %}<img class="logo" src="/word-editor/logo" alt="">{% endif %}
+    <div class="pg-ident">
+      <div class="company-name">{{ profile.company_name if profile else '' }}</div>
+      <div class="company-sub">{{ profile.document_location if profile else '' }}{% if profile and profile.phone %} · {{ profile.phone }}{% endif %}</div>
+    </div>
+    {% if doc.status == 'official' %}
+    <div class="qr-block">
+      <img class="pg-qr" alt="Document QR">
+      <div class="qr-caption"><span class="qr-pg"></span></div>
+    </div>
+    {% endif %}
+  </div>
+</template>
+
+<template id="tpl-meta">
+  <div class="pg-meta">
+    {% set approved_date = doc.self_approved_at or doc.last_edited_at %}
+    {% set parts = approved_date[:10].split('-') %}
+    {% set months = ['','January','February','March','April','May','June','July','August','September','October','November','December'] %}
+    <div><b>Date:</b> {{ parts[2] | int }} {{ months[parts[1] | int] }} {{ parts[0] }}</div>
+    <div style="text-align:right;">
+      {% if doc.status == 'official' %}<span class="status-official">OFFICIAL DOCUMENT</span>
+      {% else %}<span class="status-internal">INTERNAL DOCUMENT</span>{% endif %}
+    </div>
+    <div><b>Subject:</b> {{ doc.subject or doc.title }}</div>
+    <div style="text-align:right;"><b>Doc No:</b> {{ doc.doc_no }}</div>
+    {% if doc.receiver_name %}
+    <div><b>To:</b> {{ doc.receiver_name }}{% if doc.receiver_phone %} · {{ doc.receiver_phone }}{% endif %}</div><div></div>
+    {% endif %}
+    <div><b>Prepared by:</b> {{ doc.creator_name }}</div>
+    <div style="text-align:right;"><b>Self-approved:</b> {{ doc.self_approved_at[:16] if doc.self_approved_at else '—' }}</div>
+    {% if doc.status == 'official' %}
+    <div><b>Manager approval:</b> {{ doc.manager_approver_name }}</div>
+    <div style="text-align:right;"><b>Approved on:</b> {{ doc.manager_approved_at[:16] if doc.manager_approved_at else '—' }}</div>
+    {% if doc.manager_note %}<div style="grid-column:1/-1;"><b>Manager note:</b> {{ doc.manager_note }}</div>{% endif %}
+    {% endif %}
+    <div style="grid-column:1/-1;font-size:6.5pt;">Printed: {{ now if now else '' }}</div>
+  </div>
+</template>
+
+<template id="tpl-tail">
+  <div class="pg-disclaimer">⚠ This document does not constitute a purchase agreement, legally binding contract, or commitment of any kind unless physically signed, stamped, and verified by the relevant Chamber of Commerce.</div>
+  <div class="pg-footer">
+    <span>{{ profile.company_location if profile else '' }} &nbsp;|&nbsp; {{ profile.company_phone if profile else '' }} &nbsp;|&nbsp; {{ profile.website if profile else '' }}</span>
+    <span>{{ doc.doc_no }} &nbsp;|&nbsp; Page <span class="pg-num"></span> of <span class="pg-tot"></span></span>
+  </div>
+</template>
+
+<div id="pages"></div>
+
+<script>
+(function(){
+  var DOC_ID = {{ doc.id }};
+  var IS_OFFICIAL = {{ 'true' if doc.status == 'official' else 'false' }};
+  var src = document.getElementById('src');
+  var host = document.getElementById('pages');
+  var tHead = document.getElementById('tpl-header');
+  var tMeta = document.getElementById('tpl-meta');
+  var tTail = document.getElementById('tpl-tail');
+
+  function applyDocSettings(){
+    var cfg = src.querySelector('[data-doc-settings]');
+    var orient = cfg && cfg.getAttribute('data-orient') === 'landscape' ? 'landscape' : 'portrait';
+    var margin = (cfg && cfg.getAttribute('data-margin')) || 'normal';
+    var scale  = parseInt((cfg && cfg.getAttribute('data-scale')) || '100', 10);
+    if (cfg) cfg.parentNode.removeChild(cfg);
+
+    var pads = {narrow:'7mm 8mm 6mm 8mm', normal:'10mm 12mm 8mm 12mm', wide:'14mm 20mm 12mm 20mm'};
+    var st = document.createElement('style');
+    st.textContent = '@page{size:A4 ' + orient + '; margin:0;}'
+                   + '.page{padding:' + (pads[margin] || pads.normal) + ';}'
+                   + (scale !== 100 ? '.pg-body{font-size:' + (11 * scale / 100).toFixed(2) + 'pt;}' : '');
+    document.head.appendChild(st);
+    if (orient === 'landscape') document.body.classList.add('landscape');
+
+    // Inherit the editor's writing direction so Arabic documents print RTL.
+    var dir = src.getAttribute('dir');
+    if (dir) document.documentElement.setAttribute('dir', dir);
+  }
+
+  function newPage(first){
+    var page = document.createElement('div');
+    page.className = 'page';
+    page.appendChild(tHead.content.cloneNode(true));
+    if (first) page.appendChild(tMeta.content.cloneNode(true));
+    var body = document.createElement('div');
+    body.className = 'pg-body';
+    page.appendChild(body);
+    page.appendChild(tTail.content.cloneNode(true));
+    host.appendChild(page);
+    return body;
+  }
+
+  function overflowing(body){
+    return body.scrollHeight > body.clientHeight;
+  }
+
+  function fill(node, body, makePage){
+    // An explicit page break from the editor always starts a new page.
+    if (node.nodeType === 1 && node.hasAttribute && node.hasAttribute('data-page-break')){
+      return body.childNodes.length ? makePage() : body;
+    }
+    body.appendChild(node);
+    if (!overflowing(body)) return body;
+
+    body.removeChild(node);
+
+    // A text node that does not fit is split word by word.
+    if (node.nodeType === 3){
+      var words = node.nodeValue.split(/(\s+)/);
+      var cur = document.createTextNode('');
+      body.appendChild(cur);
+      for (var i = 0; i < words.length; i++){
+        var before = cur.nodeValue;
+        cur.nodeValue = before + words[i];
+        if (overflowing(body)){
+          cur.nodeValue = before;
+          if (!before.trim()) body.removeChild(cur);
+          body = makePage();
+          cur = document.createTextNode(words[i].replace(/^\s+/, ''));
+          body.appendChild(cur);
+        }
+      }
+      return body;
+    }
+
+    // An element that does not fit on an empty page is split by its children.
+    if (node.nodeType === 1 && node.childNodes.length && body.childNodes.length === 0){
+      var shell = node.cloneNode(false);
+      body.appendChild(shell);
+      var kids = Array.prototype.slice.call(node.childNodes);
+      for (var k = 0; k < kids.length; k++){
+        var res = fill(kids[k], shell, function(){
+          body = makePage();
+          shell = node.cloneNode(false);
+          body.appendChild(shell);
+          return shell;
+        });
+        shell = res;
+      }
+      return body;
+    }
+
+    // Otherwise: move the whole node to a fresh page.
+    body = makePage();
+    body.appendChild(node);
+    return body;
+  }
+
+  function paginate(){
+    host.innerHTML = '';
+    applyDocSettings();
+    var body = newPage(true);
+    var nodes = Array.prototype.slice.call(src.childNodes);
+    for (var i = 0; i < nodes.length; i++){
+      body = fill(nodes[i], body, function(){ return newPage(false); });
+    }
+    stamp();
+  }
+
+  function stamp(){
+    var pages = host.querySelectorAll('.page');
+    var total = pages.length;
+    for (var i = 0; i < total; i++){
+      var p = i + 1;
+      pages[i].querySelector('.pg-num').textContent = p;
+      pages[i].querySelector('.pg-tot').textContent = total;
+      if (!IS_OFFICIAL) continue;
+      var img = pages[i].querySelector('.pg-qr');
+      var cap = pages[i].querySelector('.qr-pg');
+      if (img) img.src = '/word-editor/documents/' + DOC_ID + '/qr?p=' + p + '&n=' + total;
+      if (cap) cap.textContent = p + ' / ' + total;
+    }
+  }
+
+  window.addEventListener('load', paginate);
+})();
+</script>
+
+</body>
+</html>

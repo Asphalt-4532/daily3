@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_users_subnav.html" %}
+<div class="grid grid-2">
+  <div class="card">
+    <h2 class="mt-0">Users</h2>
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    <table>
+      <tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.full_name }}</td>
+        <td>{{ u.username }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ 'Active' if u.active else 'Disabled' }}</td>
+        <td>
+          {% if u.id != user.id %}
+          <form method="post" action="/users/{{ u.id }}/toggle" style="display:inline;">
+            {{ csrf_input(request) | safe }}
+            <button class="btn small secondary" type="submit">{{ 'Disable' if u.active else 'Enable' }}</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/users/{{ u.id }}/reset-password" style="display:inline-flex; gap:4px; margin-left:4px;"
+                onsubmit="return confirm('Reset password for {{ u.username }}?');">
+            {{ csrf_input(request) | safe }}
+            <input type="text" name="new_password" placeholder="new password" required
+                   style="width:110px; padding:4px 6px; font-size:12px;">
+            <button class="btn small secondary" type="submit">Reset</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Add user</h3>
+    <form method="post" action="/users/new">
+      {{ csrf_input(request) | safe }}
+      <label>Full name</label>
+      <input type="text" name="full_name" required>
+      <label>Username</label>
+      <input type="text" name="username" required>
+      <label>Temporary password</label>
+      <input type="text" name="password" required>
+      <label>Role</label>
+      <select name="role">
+        {% for r in roles %}
+        <option value="{{ r }}">{{ r }}</option>
+        {% endfor %}
+      </select>
+      <div style="margin-top:14px;">
+        <button class="btn" type="submit">Add user</button>
+      </div>
+    </form>
+    <p class="muted" style="font-size:12.5px; margin-top:14px;">
+      Role names above set every new user's starting access. What each role can actually
+      do is editable, not fixed — see <a href="/users/roles">Roles &amp; Permissions</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}

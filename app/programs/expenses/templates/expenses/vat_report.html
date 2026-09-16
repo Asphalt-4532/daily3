@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2 class="mt-0">VAT Input Tax Summary</h2>
+  <p class="muted" style="margin-top:-6px; font-size:13px;">
+    Approved vatable expense lines only · for cross-check against QOYOD entries.
+  </p>
+  <form method="get" class="filters">
+    <div><label>From</label><input type="date" name="start" value="{{ start }}"></div>
+    <div><label>To</label><input type="date" name="end" value="{{ end }}"></div>
+    <div style="min-width:auto;"><button class="btn secondary" type="submit">Filter</button></div>
+    <div style="min-width:auto;">
+      <a class="btn" href="/expense-program/vat-report/export.xlsx?start={{ start }}&end={{ end }}">→ Excel</a>
+    </div>
+    <div style="min-width:auto;">
+      <a class="btn secondary" href="/expense-program/vat-report/export.pdf?start={{ start }}&end={{ end }}">→ PDF</a>
+    </div>
+  </form>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:16px;">
+  <div class="card stat">
+    <div class="num">{{ summary.grand.vat_amount | money }}</div>
+    <div class="label">Total VAT paid</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ summary.grand.voucher_count }}</div>
+    <div class="label">Vouchers with VAT</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ summary.grand.trx_count }}</div>
+    <div class="label">Vatable transaction lines</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 class="mt-0">By supplier</h3>
+  {% if not summary.rows %}
+  <div class="empty">No approved vatable transactions in this period.</div>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <tr>
+      <th>Supplier</th>
+      <th>VAT Number</th>
+      <th class="right">Trx</th>
+      <th class="right">Vouchers</th>
+      <th class="right">Net (excl. VAT)</th>
+      <th class="right">VAT Paid</th>
+      <th class="right">Gross</th>
+    </tr>
+    {% for r in summary.rows %}
+    <tr>
+      <td>{{ r.supplier_name }}</td>
+      <td class="muted small">{{ r.supplier_vat }}</td>
+      <td class="right">{{ r.trx_count }}</td>
+      <td class="right">{{ r.voucher_count }}</td>
+      <td class="right">{{ r.net_amount | money }}</td>
+      <td class="right"><strong>{{ r.vat_amount | money }}</strong></td>
+      <td class="right">{{ r.gross_amount | money }}</td>
+    </tr>
+    {% endfor %}
+    <tr style="border-top: 2px solid var(--line-strong); font-weight:700;">
+      <td>TOTAL</td>
+      <td></td>
+      <td class="right">{{ summary.grand.trx_count }}</td>
+      <td class="right">{{ summary.grand.voucher_count }}</td>
+      <td class="right">{{ summary.grand.net_amount | money }}</td>
+      <td class="right">{{ summary.grand.vat_amount | money }}</td>
+      <td class="right">{{ summary.grand.gross_amount | money }}</td>
+    </tr>
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

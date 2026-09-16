@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Company Profile — Word Editor{% endblock %}
+{% block content %}
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+<h2 style="margin-bottom:18px;">Company profile</h2>
+{% if profile %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+    <h3 style="margin:0;">Active profile</h3>
+    <span class="badge approved">Active</span>
+  </div>
+  <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+    {% if profile.logo_path %}
+    <div>
+      <img src="/word-editor/logo" alt="Logo" style="max-width:160px;max-height:80px;object-fit:contain;border:1px solid var(--line);border-radius:var(--radius);">
+      <div class="hint">Company logo</div>
+    </div>
+    {% else %}
+    <div style="width:160px;height:70px;background:#f3f4f7;border:1px dashed var(--line-strong);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink-faint);">No logo</div>
+    {% endif %}
+    <div style="flex:1;min-width:200px;">
+      <div class="row">
+        <div><label>Company Name</label><div style="padding:8px 0;font-size:14px;font-weight:600;">{{ profile.company_name }}</div></div>
+        <div><label>Phone</label><div style="padding:8px 0;font-size:14px;">{{ profile.phone }}</div></div>
+      </div>
+      <div class="row">
+        <div><label>Document Location</label><div style="padding:8px 0;font-size:14px;">{{ profile.document_location }}</div></div>
+        <div><label>Website</label><div style="padding:8px 0;font-size:14px;color:var(--brand);">{{ profile.website }}</div></div>
+      </div>
+    </div>
+  </div>
+  <hr>
+  <h3 style="margin-bottom:10px;">Footer (printed on every document)</h3>
+  <div style="background:#fafbfc;border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;font-size:13px;font-family:monospace;">
+    Company Location: {{ profile.company_location }}<br>
+    Company Phone: {{ profile.company_phone }}<br>
+    Company Website: {{ profile.website }}<br>
+    Document Number: WD-YYYY-NNNNN &nbsp;|&nbsp; Page X of Y
+  </div>
+  <hr>
+  <div class="alert warn">To change any of the above, submit a change request. {% if not can_manage_profile %}A manager must approve it before it takes effect.{% endif %}</div>
+  <button class="btn secondary" onclick="document.getElementById('changeForm').style.display='block';document.getElementById('changeForm').scrollIntoView({behavior:'smooth'})">Request a change</button>
+</div>
+
+<div class="card" id="changeForm" style="display:none;border-left:3px solid #f59e0b;">
+  <h3>Change request <span style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:20px;font-size:11px;font-weight:600;padding:2px 8px;display:inline-block;">Needs manager approval</span></h3>
+  <form method="post" action="/word-editor/profile/request-change" enctype="multipart/form-data">
+    {{ csrf_input(request) | safe }}
+    <div style="border:2px dashed var(--line-strong);border-radius:var(--radius);padding:14px;text-align:center;margin-bottom:8px;cursor:pointer;" onclick="document.getElementById('chgLogoInput').click()">
+      <div style="font-size:13px;color:var(--ink-soft);">🖼 Click to upload new logo (optional — leave to keep current)</div>
+    </div>
+    <input type="file" id="chgLogoInput" name="logo" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+    <div class="row">
+      <div><label>Company Name</label><input type="text" name="company_name" value="{{ profile.company_name }}" required></div>
+      <div><label>Phone</label><input type="text" name="phone" value="{{ profile.phone }}" required></div>
+    </div>
+    <div class="row">
+      <div><label>Document Location</label><input type="text" name="document_location" value="{{ profile.document_location }}" required></div>
+      <div><label>Website</label><input type="text" name="website" value="{{ profile.website }}" required></div>
+    </div>
+    <div class="row">
+      <div><label>Footer Company Location</label><input type="text" name="company_location" value="{{ profile.company_location }}" required></div>
+      <div><label>Footer Company Phone</label><input type="text" name="company_phone" value="{{ profile.company_phone }}" required></div>
+    </div>
+    <div class="actions-row" style="margin-top:16px;">
+      <button type="button" class="btn secondary" onclick="document.getElementById('changeForm').style.display='none'">Cancel</button>
+      <button type="submit" class="btn">Submit change request</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if can_manage_profile and pending %}
+<div class="card">
+  <h3 style="margin-bottom:12px;">Pending change requests</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Requested by</th><th>Date</th><th>Action</th></tr>
+      {% for req in pending %}
+      <tr>
+        <td>{{ req.requester_name }}</td>
+        <td>{{ req.created_at[:16] }}</td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <form method="post" action="/word-editor/profile/approve/{{ req.id }}" style="display:inline;">
+              {{ csrf_input(request) | safe }}
+              <button type="submit" class="btn small">Approve</button>
+            </form>
+            <form method="post" action="/word-editor/profile/reject/{{ req.id }}" style="display:inline;" onsubmit="return setRejectReason(this)">
+              {{ csrf_input(request) | safe }}
+              <input type="hidden" name="reason" id="rej-reason-{{ req.id }}">
+              <button type="submit" class="btn danger small">Reject</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty">No pending requests.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+<script>
+function setRejectReason(form){
+  const r=prompt('Rejection reason:');
+  if(!r)return false;
+  form.querySelector('[name=reason]').value=r;
+  return true;
+}
+</script>
+{% endif %}
+{% endblock %}

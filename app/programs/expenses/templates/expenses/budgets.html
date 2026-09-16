@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set over_budget_rows = budget_rows | selectattr('over_budget') | list %}
+{% if over_budget_rows %}
+<div class="alert danger" style="margin-bottom:14px;">
+  <strong>{{ over_budget_rows | length }} budget(s) exceeded for {{ period }}.</strong>
+  {% for r in over_budget_rows %}
+  <div style="font-size:13px; margin-top:4px;">
+    {{ r.cost_center_name }} / {{ r.category_name }} —
+    {{ r.actual | money }} spent vs {{ r.budget | money }} budget
+    ({{ r.utilisation_pct }}%)
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">Budget vs Actual — {{ period }}</h3>
+    <form method="get" style="margin-bottom:14px; display:flex; gap:8px; align-items:flex-end;">
+      <div>
+        <label>Period (YYYY-MM)</label>
+        <input type="month" name="period" value="{{ period }}">
+      </div>
+      <div><button class="btn secondary" type="submit">Load</button></div>
+    </form>
+
+    {% if not budget_rows %}
+    <div class="empty">No budgets set for {{ period }}.</div>
+    {% else %}
+    <div class="table-wrap">
+    <table>
+      <tr>
+        <th>Cost Centre</th><th>Category</th>
+        <th class="right">Budget</th><th class="right">Actual</th>
+        <th class="right">Variance</th><th>%</th>
+      </tr>
+      {% for r in budget_rows %}
+      <tr {% if r.over_budget %}style="background:rgba(220,38,38,.06);"{% endif %}>
+        <td>{{ r.cost_center_name }}</td>
+        <td>{{ r.category_name }}</td>
+        <td class="right">{{ r.budget | money }}</td>
+        <td class="right">{{ r.actual | money }}</td>
+        <td class="right {% if r.over_budget %}danger{% endif %}">
+          {{ r.variance | money }}{% if r.over_budget %} ▲{% endif %}
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <div style="background:#eee; border-radius:4px; height:8px; width:80px; overflow:hidden;">
+              <div style="height:100%; width:{{ [r.utilisation_pct, 100] | min }}%;
+                           background:{% if r.utilisation_pct > 100 %}var(--danger){% elif r.utilisation_pct > 80 %}#f59e0b{% else %}var(--accent){% endif %};
+                           border-radius:4px;"></div>
+            </div>
+            <span class="muted small">{{ r.utilisation_pct }}%</span>
+            <form method="post" action="/expense-program/budgets/{{ r.id }}/delete" style="display:inline; margin:0;">
+              {{ csrf_input(request) | safe }}
+              <button class="btn small danger" type="submit"
+                onclick="return confirm('Remove this budget entry?')">×</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Set budget</h3>
+    <form method="post" action="/expense-program/budgets/set">
+      {{ csrf_input(request) | safe }}
+      <label>Period (YYYY-MM)</label>
+      <input type="month" name="period" value="{{ period }}" required>
+
+      <label style="margin-top:8px;">Cost centre <span class="muted">(leave blank = company-wide)</span></label>
+      <select name="cost_center_id">
+        <option value="">— Company-wide —</option>
+        {% for cc in cost_centers %}
+        <option value="{{ cc.id }}">{{ cc.name }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-top:8px;">Category <span class="muted">(leave blank = all categories)</span></label>
+      <select name="category_id">
+        <option value="">— All categories —</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+
+      <label style="margin-top:8px;">Budget amount</label>
+      <input type="number" name="amount" step="0.01" min="0.01" required placeholder="e.g. 5000.00">
+
+      <div style="margin-top:12px;"><button class="btn" type="submit">Save budget</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

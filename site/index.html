@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Petty Cash &amp; ERP — Industry theme</title>
+<meta name="description" content="A self-hosted ERP for factory petty cash, assets, weekly productions and documents. Static showcase of the interface.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f2f3; --surface:#e9e9ea; --ink:#1d1f20; --ink-soft:#5d5d60; --ink-faint:#7a7a7d;
+  --line:rgba(29,31,32,.16); --line-strong:rgba(29,31,32,.3);
+  --brand:#5980a6; --brand-700:#416180; --brand-800:#2c455d; --brand-dark:#1d2d3d;
+  --brand-100:#eef6ff; --brand-300:#b5d9fd;
+  --bad:#8c2f2f;
+  --shadow-sm:0 1px 2px rgba(43,43,45,.14);
+  --shadow-md:0 3px 10px rgba(43,43,45,.16);
+  --shadow-lg:0 12px 32px rgba(43,43,45,.22);
+  --font-heading:"Barlow Condensed","Segoe UI",system-ui,sans-serif;
+  --font-body:"Barlow","Segoe UI",system-ui,sans-serif;
+  --tap:44px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;font-family:var(--font-body);background:var(--bg);color:var(--ink);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:var(--font-heading);font-weight:600;letter-spacing:-.005em;line-height:1.14;margin:0}
+h1{font-size:clamp(30px,5vw,52px)}
+h2{font-size:clamp(21px,3vw,28px)}
+h3{font-size:clamp(16px,2vw,19px)}
+p{margin:0}
+a{color:var(--brand-700);text-decoration:none;text-underline-offset:3px}
+a:hover{color:var(--brand);text-decoration:underline}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+::selection{background:rgba(89,128,166,.3)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(14px,3vw,26px)}
+
+/* top bar — the app's own chrome */
+.topbar{
+  background:var(--brand-dark);color:#f2f2f3;display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;padding:9px clamp(12px,3vw,22px);position:sticky;top:0;z-index:30;
+}
+.topbar .brand{font-family:var(--font-heading);font-weight:600;font-size:clamp(17px,2.4vw,21px);color:#fff;letter-spacing:.02em;margin-right:auto}
+.topbar .brand small{display:block;font-family:var(--font-body);font-weight:400;font-size:11px;color:#b5d9fd;letter-spacing:.06em}
+.topbar nav{display:flex;gap:4px;flex-wrap:wrap}
+.topbar nav a{color:#d6ebff;padding:8px 11px;font-size:13.5px;border:1px solid transparent}
+.topbar nav a:hover{color:#fff;border-color:rgba(181,217,253,.4);text-decoration:none}
+
+/* hero */
+.hero{padding:clamp(34px,6vw,70px) 0 clamp(28px,5vw,54px);border-bottom:1px solid var(--line)}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(24px,4vw,52px);align-items:center}
+.hero h1{max-width:15ch}
+.hero .lede{margin-top:16px;max-width:56ch;color:var(--ink-soft);font-size:clamp(15px,1.5vw,17px)}
+.spec{margin-top:26px;border-top:1px solid var(--line-strong);display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.spec div{padding:12px 14px 12px 0;border-right:1px solid var(--line)}
+.spec div:last-child{border-right:0}
+.spec dt{font-family:var(--font-heading);font-size:22px;color:var(--brand-800)}
+.spec dd{margin:0;font-size:12.5px;color:var(--ink-faint)}
+
+/* login facsimile — the app's real home page */
+.screen{position:relative;background:var(--surface);border:1px solid var(--line-strong);box-shadow:var(--shadow-lg)}
+.screen::before,.screen::after{
+  content:"";position:absolute;width:9px;height:9px;border:1px solid var(--brand);opacity:.55;
+}
+.screen::before{top:7px;left:7px;border-right:0;border-bottom:0}
+.screen::after{bottom:7px;right:7px;border-left:0;border-top:0}
+.screen-bar{background:var(--brand-dark);color:#b5d9fd;font-size:11px;letter-spacing:.06em;padding:7px 12px;display:flex;justify-content:space-between}
+.screen-body{padding:clamp(20px,3vw,34px) clamp(18px,3vw,30px);background:var(--bg)}
+.login-card{background:var(--surface);border:1px solid var(--line);padding:22px 20px;box-shadow:var(--shadow-sm)}
+.login-card h3{text-align:center;font-size:23px}
+.login-card .sub{text-align:center;color:var(--ink-soft);font-size:13px}
+.login-card .addr{text-align:center;color:var(--ink-faint);font-size:11.5px;margin-bottom:18px}
+label{display:block;font-size:12.5px;color:var(--ink-soft);margin:12px 0 4px}
+input{
+  width:100%;min-height:var(--tap);padding:8px 10px;font-family:var(--font-body);font-size:14px;
+  background:#fff;border:1px solid var(--line-strong);color:var(--ink);border-radius:0;
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap);
+  width:100%;margin-top:18px;padding:10px 16px;background:var(--brand);color:#fff;border:0;
+  font-family:var(--font-heading);font-size:17px;letter-spacing:.02em;cursor:pointer;
+}
+.btn:hover{background:var(--brand-700)}
+.note{margin-top:12px;font-size:12px;color:var(--ink-faint);text-align:center;min-height:1.4em}
+
+/* sections */
+section{padding:clamp(34px,5vw,60px) 0;border-bottom:1px solid var(--line)}
+.head{max-width:60ch;margin-bottom:26px}
+.head p{margin-top:10px;color:var(--ink-soft)}
+.modules{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:1px;background:var(--line-strong);border:1px solid var(--line-strong)}
+.module{background:var(--bg);padding:20px 18px}
+.module h3{color:var(--brand-800)}
+.module p{margin-top:8px;font-size:13.5px;color:var(--ink-soft)}
+.module ul{margin:14px 0 0;padding:0;list-style:none;font-size:13px}
+.module li{padding:5px 0;border-top:1px solid var(--line);color:var(--ink-soft)}
+.module li span{color:var(--brand-700)}
+.rule{display:grid;grid-template-columns:15ch 1fr;gap:18px;padding:15px 0;border-top:1px solid var(--line);align-items:start}
+.rule:last-child{border-bottom:1px solid var(--line)}
+.rule b{font-family:var(--font-heading);font-weight:600;font-size:17px;color:var(--brand-800)}
+.rule p{font-size:14px;color:var(--ink-soft);max-width:72ch}
+.stack{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.stack li{list-style:none;border:1px solid var(--line-strong);padding:5px 10px;font-size:12.5px;color:var(--ink-soft);background:var(--surface)}
+footer{padding:28px 0 44px;color:var(--ink-faint);font-size:13px}
+footer strong{font-family:var(--font-heading);color:var(--ink);font-weight:600}
+
+@media (max-width:860px){
+  .hero-grid{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr 1fr}
+  .rule{grid-template-columns:1fr;gap:6px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">Al Manara Industries<small>PETTY CASH &amp; OPERATIONS</small></div>
+  <nav>
+    <a href="#modules">Modules</a>
+    <a href="#rules">How it works</a>
+    <a href="#build">Build</a>
+  </nav>
+</header>
+
+<main>
+<div class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Factory petty cash, recorded properly.</h1>
+      <p class="lede">A self-hosted ERP for one site: multi-line vouchers with per-line VAT, an approval trail nothing escapes, asset custody, weekly production returns and a document editor. Runs on a homelab box; five to ten people use it from any browser on the LAN.</p>
+      <dl class="spec">
+        <div><dt>4</dt><dd>modules on one login</dd></div>
+        <div><dt>0</dt><dd>financial records ever hard-deleted</dd></div>
+        <div><dt>A4</dt><dd>pre-numbered PDF on every export</dd></div>
+      </dl>
+    </div>
+
+    <div class="screen">
+      <div class="screen-bar"><span>petty-cash.lan</span><span>/</span></div>
+      <div class="screen-body">
+        <div class="login-card">
+          <h3>Al Manara Industries</h3>
+          <div class="sub">Expense Program</div>
+          <div class="addr">Plot 44, Industrial Area 2</div>
+          <label for="u">Username</label>
+          <input id="u" type="text" value="demo" autocomplete="off">
+          <label for="p">Password</label>
+          <input id="p" type="password" value="demo1234">
+          <button class="btn" id="go" type="button">Log in</button>
+          <p class="note" id="note">The address bar reads <code>/</code> — the login page is the home page.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="modules">
+  <div class="wrap">
+    <div class="head">
+      <h2>Four modules, one account list</h2>
+      <p>Each module owns its own URL prefix and its own templates, so adding the next one never edits the last one. Users, the audit log and backups are shared.</p>
+    </div>
+    <div class="modules">
+      <div class="module">
+        <h3>Petty Cash &amp; Expenses</h3>
+        <p>Vouchers, drafts, approvals, budgets, advances, cash ledger.</p>
+        <ul>
+          <li>Voucher <span>PCV-2026-00001</span></li>
+          <li>VAT marked per line, not per voucher</li>
+          <li>Reject or delete with a recorded reason</li>
+          <li>Excel and PDF for any date range</li>
+        </ul>
+      </div>
+      <div class="module">
+        <h3>Assets &amp; Custody</h3>
+        <p>Who holds what, since when, and what it has cost to keep running.</p>
+        <ul>
+          <li>Custody handover per employee</li>
+          <li>Service log and timeline</li>
+          <li>Maintenance spend links back to a voucher line</li>
+        </ul>
+      </div>
+      <div class="module">
+        <h3>Weekly Productions</h3>
+        <p>Production returns entered week by week and read back as a trend.</p>
+        <ul>
+          <li>One form per week, per line</li>
+          <li>Sticky save bar on long entries</li>
+        </ul>
+      </div>
+      <div class="module">
+        <h3>Word Editor</h3>
+        <p>Letters and memos written in-app, on the company letterhead.</p>
+        <ul>
+          <li>Ribbon: Home, Insert, Layout, Review</li>
+          <li>Autosave, @mentions, QR reference</li>
+          <li>Print scaled to fit one page</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="rules">
+  <div class="wrap">
+    <div class="head">
+      <h2>The rules that don't bend</h2>
+      <p>Accounting decisions baked into the code, not left to whoever is on the keyboard.</p>
+    </div>
+
+    <div class="rule">
+      <b>Soft delete</b>
+      <p>A manager can remove a voucher from lists and totals, with a reason. The row stays in the database and a full snapshot of it stays in the audit log. There is no path in the interface that erases a financial record.</p>
+    </div>
+    <div class="rule">
+      <b>Drafts</b>
+      <p>An unfinished voucher needs no number, no payee and no lines. It gets its number the moment it is submitted, which is also when full validation runs. Discarding a draft deletes it outright — it was never a committed record.</p>
+    </div>
+    <div class="rule">
+      <b>VAT per line</b>
+      <p>Amounts are entered excluding VAT and each line is marked VAT-able or not, so one payment can mix fuel at the standard rate with a reimbursement at nothing. A voucher total is always the sum of its lines.</p>
+    </div>
+    <div class="rule">
+      <b>Permissions</b>
+      <p>Manager, accountant and user — and what each can do is a grid of tick boxes a manager edits at Users → Roles &amp; Permissions. Changes apply to live sessions with no restart. The app refuses to save a grid where nobody can manage users.</p>
+    </div>
+    <div class="rule">
+      <b>Backups</b>
+      <p>A scheduled LZMA snapshot of the database and every receipt, taken through SQLite's hot-backup API. Restore needs the word RESTORE typed out plus a reason, takes a safety backup first, and screens any uploaded archive for zip-slip and zip-bomb before trusting it.</p>
+    </div>
+    <div class="rule">
+      <b>Documents</b>
+      <p>Every export is A4 and carries its own sequence — RPT for reports, AUD for the audit log — allocated as it is generated, with the requester's name and the timestamp at the top. Whatever filter is on screen is what lands in the file.</p>
+    </div>
+  </div>
+</section>
+
+<section id="build">
+  <div class="wrap">
+    <div class="head">
+      <h2>Build</h2>
+      <p>Routes parse the request, services hold every rule with no web framework in sight, templates do the rest. One installer script sets up either path and runs the test suite as its own last check.</p>
+    </div>
+    <ul class="stack">
+      <li>FastAPI</li><li>Jinja2</li><li>SQLite</li><li>bcrypt</li><li>reportlab</li><li>openpyxl</li><li>Docker Compose</li><li>pytest</li><li>Barlow / Barlow Condensed</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <strong>Static showcase.</strong> Screens and figures here are sample data — the running app is self-hosted behind the company LAN or a Cloudflare Tunnel.
+  </div>
+</footer>
+
+<script>
+  document.getElementById('go').addEventListener('click', function () {
+    document.getElementById('note').textContent = 'Showcase page — the real login lives on the self-hosted app.';
+  });
+</script>
+</body>
+</html>

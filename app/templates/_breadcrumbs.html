@@ -1,0 +1,124 @@
+{# Breadcrumb trail plus a "recent" drop-down.
+
+   The trail itself is server-rendered from the URL (app/breadcrumbs.py), so
+   it works with JavaScript disabled - the drop-down is the only enhanced
+   part, and its button is only inserted by the script below. Nothing is
+   ever shown that does not work.
+
+   Recent pages are held in sessionStorage rather than localStorage on
+   purpose: "where have I been just now" is a property of this tab's working
+   session, not something to carry across days or leak to whoever opens the
+   browser next. #}
+{% set crumbs = breadcrumbs(request) %}
+{% if crumbs %}
+<nav class="crumbs" aria-label="Breadcrumb" data-crumbs>
+  <ol>
+    {% for c in crumbs %}
+    <li>
+      {% if c.current %}
+      <span aria-current="page">{{ c.label }}</span>
+      {% else %}
+      <a href="{{ c.url }}">{{ c.label }}</a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  {# Populated by the script; empty and hidden without JS. #}
+  <div class="crumb-recent" hidden>
+    <button type="button" class="crumb-recent-btn" aria-expanded="false"
+            aria-haspopup="true" title="Recently visited">Recent</button>
+    <ul class="crumb-recent-menu" role="menu" hidden></ul>
+  </div>
+
+  {% set sibs = breadcrumb_siblings(request) %}
+  {% if sibs %}
+  <div class="crumb-recent crumb-siblings">
+    <button type="button" class="crumb-recent-btn" aria-expanded="false"
+            aria-haspopup="true" title="Jump within this program">Go to</button>
+    <ul class="crumb-recent-menu" role="menu" hidden>
+      {% for s in sibs %}
+      <li role="none"><a role="menuitem" href="{{ s.url }}">{{ s.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</nav>
+
+<script>
+/* Recent-history drop-down.
+   Records this page, then renders the last few *other* pages as a menu.
+   Wrapped in try/catch throughout: sessionStorage throws outright in a
+   locked-down browser or private mode, and a navigation aid must never be
+   the thing that breaks a page. */
+(function () {
+  var KEY = 'nav_recent';
+  var LIMIT = 10;
+  var root = document.querySelector('[data-crumbs]');
+  if (!root) return;
+
+  function read() {
+    try { return JSON.parse(sessionStorage.getItem(KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function write(list) {
+    try { sessionStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  var here = location.pathname + location.search;
+  var title = (document.title || here).split('·')[0].trim();
+  var list = read().filter(function (item) { return item.url !== here; });
+  list.unshift({ url: here, label: title || here });
+  write(list.slice(0, LIMIT));
+
+  var others = list.slice(0, LIMIT - 1);
+  if (!others.length) return;
+
+  var box = root.querySelector('.crumb-recent');
+  var menu = box.querySelector('.crumb-recent-menu');
+  others.forEach(function (item) {
+    var li = document.createElement('li');
+    li.setAttribute('role', 'none');
+    var a = document.createElement('a');
+    a.setAttribute('role', 'menuitem');
+    a.href = item.url;
+    a.textContent = item.label;          /* textContent, never innerHTML -
+                                            the label came from a page title
+                                            and is not ours to trust */
+    li.appendChild(a);
+    menu.appendChild(li);
+  });
+  box.hidden = false;
+
+  /* One toggle handler for every drop-down in the bar, including the
+     server-rendered "Go to" one. */
+  root.querySelectorAll('.crumb-recent-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var own = btn.parentNode.querySelector('.crumb-recent-menu');
+      root.querySelectorAll('.crumb-recent-menu').forEach(function (m) {
+        if (m !== own) { m.hidden = true; }
+      });
+      root.querySelectorAll('.crumb-recent-btn').forEach(function (b) {
+        if (b !== btn) { b.setAttribute('aria-expanded', 'false'); }
+      });
+      var open = own.hidden;
+      own.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+
+  document.addEventListener('click', function () {
+    root.querySelectorAll('.crumb-recent-menu').forEach(function (m) { m.hidden = true; });
+    root.querySelectorAll('.crumb-recent-btn').forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      root.querySelectorAll('.crumb-recent-menu').forEach(function (m) { m.hidden = true; });
+    }
+  });
+})();
+</script>
+{% endif %}

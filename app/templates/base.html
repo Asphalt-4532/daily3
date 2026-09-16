@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ COMPANY_NAME }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+<script>
+/* Density, applied before first paint.
+
+   Read straight onto <html> here rather than in a DOMContentLoaded handler
+   further down the page: doing it later means the browser paints the
+   comfortable layout first and then snaps to compact, which reads as a bug
+   even though it settles correctly. Wrapped in try/catch because
+   localStorage throws outright in some privacy modes, and the whole feature
+   is a preference - it must never stop a page rendering. */
+(function () {
+  try {
+    var d = localStorage.getItem('ui_density');
+    if (d === 'compact') { document.documentElement.setAttribute('data-density', 'compact'); }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+{% if user %}
+{% set in_expense = request.url.path.startswith('/expense-program') %}
+{% set in_production = request.url.path.startswith('/weekly-productions') %}
+{% set in_word_editor = request.url.path.startswith('/word-editor') %}
+{% set in_assets = request.url.path.startswith('/assets') %}
+
+<input type="checkbox" id="module-menu" aria-label="Open module menu">
+
+<div class="topbar">
+  <label class="menu-btn" for="module-menu" title="All modules"><span></span><span></span><span></span></label>
+  <div class="brand">{{ COMPANY_NAME }}
+    <small>{{ 'Weekly Productions' if in_production else 'Word Editor' if in_word_editor else 'Assets' if in_assets else 'Expense Program' if in_expense else 'Program Hub' }}</small>
+  </div>
+  <div class="nav">
+    {% if in_expense %}
+    <a href="/expense-program/" class="{{ 'active' if request.url.path == '/expense-program/' }}">Dashboard</a>
+    <a href="/expense-program/expenses" class="{{ 'active' if request.url.path.startswith('/expense-program/expenses') and request.url.path != '/expense-program/expenses/new' }}">Expenses</a>
+    {% if user.role in ['user','manager'] %}
+    <a href="/expense-program/expenses/new" class="{{ 'active' if request.url.path == '/expense-program/expenses/new' }}">New voucher</a>
+    {% endif %}
+    <a href="/expense-program/reports" class="{{ 'active' if request.url.path == '/expense-program/reports' }}">Reports</a>
+    <a href="/expense-program/vat-report" class="{{ 'active' if request.url.path.startswith('/expense-program/vat-report') }}">VAT</a>
+    <a href="/expense-program/advances" class="{{ 'active' if request.url.path.startswith('/expense-program/advances') }}">Advances</a>
+    {% if user.role == 'manager' %}
+    <a href="/expense-program/cash" class="{{ 'active' if request.url.path.startswith('/expense-program/cash') }}">Cash float</a>
+    <a href="/expense-program/budgets" class="{{ 'active' if request.url.path.startswith('/expense-program/budgets') }}">Budgets</a>
+    <a href="/expense-program/settings" class="{{ 'active' if request.url.path == '/expense-program/settings' }}">Settings</a>
+    {% endif %}
+    {% elif in_word_editor %}
+    <a href="/word-editor/" class="{{ 'active' if request.url.path == '/word-editor/' }}">Dashboard</a>
+    <a href="/word-editor/documents/new" class="{{ 'active' if request.url.path == '/word-editor/documents/new' }}">New document</a>
+    <a href="/word-editor/documents" class="{{ 'active' if request.url.path.startswith('/word-editor/documents') and '/new' not in request.url.path and '/edit' not in request.url.path }}">Documents</a>
+    <a href="/word-editor/profile" class="{{ 'active' if request.url.path == '/word-editor/profile' }}">Profile</a>
+    {% if user.role == 'manager' or can_manage_wd_users %}
+    <a href="/word-editor/users" class="{{ 'active' if request.url.path == '/word-editor/users' }}">Users</a>
+    {% endif %}
+    {% if user.role == 'manager' %}
+    <a href="/word-editor/universal-templates" class="{{ 'active' if request.url.path == '/word-editor/universal-templates' }}">Templates</a>
+    {% endif %}
+    {% elif in_production %}
+    <a href="/weekly-productions/" class="{{ 'active' if request.url.path == '/weekly-productions/' }}">Production</a>
+    {% if user.role in ['user','manager'] %}
+    <a href="/weekly-productions/reports/new" class="{{ 'active' if request.url.path == '/weekly-productions/reports/new' }}">New entry</a>
+    {% endif %}
+    <a href="/weekly-productions/reports" class="{{ 'active' if request.url.path.startswith('/weekly-productions/reports') and request.url.path != '/weekly-productions/reports/new' }}">Reports</a>
+    {% if user.role == 'manager' %}
+    <a href="/weekly-productions/settings" class="{{ 'active' if request.url.path == '/weekly-productions/settings' }}">Settings</a>
+    {% endif %}
+    {% elif in_assets %}
+    <a href="/assets/" class="{{ 'active' if request.url.path == '/assets/' }}">Registry</a>
+    <a href="/assets/reports" class="{{ 'active' if request.url.path == '/assets/reports' }}">Reports</a>
+    {% if user.role == 'manager' %}
+    <a href="/assets/employees" class="{{ 'active' if request.url.path == '/assets/employees' }}">Employees</a>
+    <a href="/assets/settings" class="{{ 'active' if request.url.path == '/assets/settings' }}">Settings</a>
+    {% endif %}
+    {% endif %}
+    {% include "_notification_bell.html" %}
+    {# Density toggle. Inserted by script (see the bottom of this file) so it
+       is never shown to a browser that cannot honour it. #}
+    <button type="button" class="density-btn" data-density-toggle hidden
+            title="Switch table density" aria-pressed="false">Compact</button>
+    <span class="who">{{ user.full_name }} · {{ user.role }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</div>
+
+{% include "_notification_drawer.html" %}
+
+<label class="drawer-scrim" for="module-menu"></label>
+
+<nav class="drawer" aria-label="All modules">
+  <div class="drawer-head">
+    <div class="title">Modules</div>
+    <label class="drawer-close" for="module-menu" title="Close">&times;</label>
+  </div>
+
+  <div class="drawer-body">
+    <div class="drawer-group">Programs</div>
+
+    <a href="/word-editor/" class="{{ 'here' if in_word_editor }}">
+      <span>Word Editor<span class="sub">Letters, reports, approvals</span></span>
+    </a>
+    {% if in_word_editor %}
+    <a href="/word-editor/documents" style="padding-left:44px;">Documents</a>
+    <a href="/word-editor/documents/new" style="padding-left:44px;">New document</a>
+    <a href="/word-editor/profile" style="padding-left:44px;">Company profile</a>
+    {% endif %}
+
+    <a href="/expense-program/" class="{{ 'here' if in_expense }}">
+      <span>Petty Cash &amp; Expenses<span class="sub">Vouchers, advances, VAT</span></span>
+    </a>
+    {% if in_expense %}
+    <a href="/expense-program/expenses" style="padding-left:44px;">Expenses</a>
+    <a href="/expense-program/reports" style="padding-left:44px;">Reports</a>
+    <a href="/expense-program/advances" style="padding-left:44px;">Advances</a>
+    {% endif %}
+
+    <a href="/assets/" class="{{ 'here' if in_assets }}">
+      <span>Assets &amp; Custody<span class="sub">Register, custody, service log</span></span>
+    </a>
+    {% if in_assets %}
+    <a href="/assets/reports" style="padding-left:44px;">Reports</a>
+    {% endif %}
+
+    <a href="/weekly-productions/" class="{{ 'here' if in_production }}">
+      <span>Weekly Productions<span class="sub">Reports by week</span></span>
+    </a>
+    {% if in_production %}
+    <a href="/weekly-productions/reports" style="padding-left:44px;">Reports</a>
+    {% endif %}
+
+    <a href="/programs"><span>All programs<span class="sub">Program hub</span></span></a>
+
+    {% if user.role == 'manager' %}
+    <div class="drawer-group">Administration</div>
+    <a href="/users">Users &amp; roles</a>
+    <a href="/audit">Audit log</a>
+    <a href="/backups">Backups</a>
+    <a href="/settings/network">Network settings</a>
+    {% endif %}
+  </div>
+
+  <div class="drawer-foot">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;">{{ user.full_name }}</div>
+      <div class="muted small">{{ user.role }}</div>
+    </div>
+    <a class="btn secondary small" href="/logout">Log out</a>
+  </div>
+</nav>
+{% endif %}
+
+{# One-shot confirmation from the previous request - see app/flash.py.
+   Popped here, once per page, so it can never show twice. #}
+{% set flash = pop_flash(request) %}
+{% if flash %}
+<div class="toast-stack" role="status" aria-live="polite">
+  <div class="toast toast-{{ flash.level }}"
+       {% if flash.undo_token %}data-undo-seconds="{{ UNDO_BUTTON_SECONDS }}"{% endif %}>
+    <span class="toast-msg">{{ flash.message }}</span>
+    {% if flash.undo_token %}
+    {# A real form, not a JS-only button: the undo has to work with
+       JavaScript disabled too, and it must carry CSRF like every other
+       state-changing POST in this app. The countdown below only hides it
+       early - app/undo.py enforces the real expiry server-side, because a
+       hidden button is still a clickable one for anyone crafting a POST. #}
+    <form method="post" action="/undo" class="toast-undo-form">
+      {{ csrf_input(request) | safe }}
+      <input type="hidden" name="token" value="{{ flash.undo_token }}">
+      <input type="hidden" name="next_url" value="{{ request.url.path }}">
+      <button type="submit" class="toast-undo">{{ flash.undo_label }}<span class="toast-undo-count"></span></button>
+    </form>
+    {% endif %}
+    <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
+  </div>
+</div>
+{% endif %}
+
+<div class="container">
+{% if user %}{% include "_breadcrumbs.html" %}{% endif %}
+<div class="page-body" data-page-body>
+{% block content %}{% endblock %}
+</div>
+</div>
+
+{% if flash %}
+<script>
+/* Toast fades itself out. With JS off it simply stays on the page - visible
+   and dismissible by navigating away, never blocking anything.
+
+   A toast carrying an Undo lives longer than a plain one and counts the
+   button down, then removes the button and dismisses. The countdown is
+   presentation only: app/undo.py refuses a late token regardless, and does
+   so with a slightly longer window than this so a click landing at 4.9s
+   still survives its own network latency. */
+(function () {
+  var toast = document.querySelector('.toast');
+  if (!toast) return;
+  var closeBtn = toast.querySelector('.toast-close');
+  var undoForm = toast.querySelector('.toast-undo-form');
+  var counter = toast.querySelector('.toast-undo-count');
+  var seconds = parseInt(toast.getAttribute('data-undo-seconds') || '0', 10);
+  var timer = null, tick = null;
+
+  function dismiss() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (tick) { clearInterval(tick); tick = null; }
+    toast.classList.add('is-leaving');
+    setTimeout(function () {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }
+  if (closeBtn) closeBtn.addEventListener('click', dismiss);
+
+  if (undoForm && seconds > 0) {
+    var left = seconds;
+    if (counter) counter.textContent = ' ' + left;
+    tick = setInterval(function () {
+      left -= 1;
+      if (counter) counter.textContent = left > 0 ? ' ' + left : '';
+      if (left <= 0) {
+        clearInterval(tick); tick = null;
+        if (undoForm.parentNode) undoForm.parentNode.removeChild(undoForm);
+        dismiss();
+      }
+    }, 1000);
+    /* Clicking Undo submits; stop the countdown removing the form
+       underneath a submit that is already in flight. */
+    undoForm.addEventListener('submit', function () {
+      if (tick) { clearInterval(tick); tick = null; }
+      if (timer) { clearTimeout(timer); timer = null; }
+    });
+  } else {
+    timer = setTimeout(dismiss, 4000);
+  }
+})();
+</script>
+{% endif %}
+
+<script>
+/* Density toggle.
+
+   The button starts hidden in the markup and is revealed here, so a browser
+   that cannot run this (or cannot store the preference) never shows a
+   control that would do nothing. The value is applied to <html> in the head
+   on every load - this half only handles the click. */
+(function () {
+  var btn = document.querySelector('[data-density-toggle]');
+  if (!btn) return;
+  var root = document.documentElement;
+  function stored() {
+    try { return localStorage.getItem('ui_density') || 'cozy'; } catch (e) { return 'cozy'; }
+  }
+  function paint(mode) {
+    if (mode === 'compact') { root.setAttribute('data-density', 'compact'); }
+    else { root.removeAttribute('data-density'); }
+    btn.textContent = mode === 'compact' ? 'Comfortable' : 'Compact';
+    btn.setAttribute('aria-pressed', mode === 'compact' ? 'true' : 'false');
+  }
+  paint(stored());
+  btn.hidden = false;
+  btn.addEventListener('click', function () {
+    var next = stored() === 'compact' ? 'cozy' : 'compact';
+    try { localStorage.setItem('ui_density', next); } catch (e) {}
+    paint(next);
+  });
+})();
+</script>
+
+<script>
+/* Skeleton on navigation.
+
+   This app renders on the server, so there is no data-fetch to put a
+   skeleton in front of - the wait is the page load itself, and the default
+   browser behaviour for that is to show the old page, frozen, until the new
+   one arrives. On a filter submit over a slow LAN that reads as a click
+   that did nothing.
+
+   So: when a same-origin navigation starts, replace the page body with
+   shimmer blocks. The real page replaces them the moment it paints. Only
+   plain left-click navigations and GET form submits are hooked - never a
+   POST, a download, a new tab, or an in-page anchor, none of which replace
+   this document.
+
+   pageshow restores the real content if the user comes back via the
+   browser's back/forward cache, which would otherwise show them a frozen
+   skeleton of a page they already have. */
+(function () {
+  var body = document.querySelector('[data-page-body]');
+  if (!body) return;
+  var swapped = false;
+
+  function skeleton() {
+    if (swapped) return;
+    swapped = true;
+    var rows = '';
+    for (var i = 0; i < 6; i++) { rows += '<div class="skel-row"></div>'; }
+    body.innerHTML =
+      '<div class="card skel-card" aria-hidden="true">' +
+      '<div class="skel skel-title"></div>' + rows + '</div>';
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey ||
+        e.shiftKey || e.altKey) return;
+    var a = e.target.closest ? e.target.closest('a') : null;
+    if (!a || !a.href) return;
+    if (a.target && a.target !== '_self') return;
+    if (a.hasAttribute('download')) return;
+    if (a.getAttribute('href').charAt(0) === '#') return;
+    if (a.origin !== location.origin) return;
+    if (a.pathname === location.pathname && a.search === location.search) return;
+    /* Exports stream a file and leave the page where it is - a skeleton
+       there would never be cleared. */
+    if (/\.(xlsx|pdf|csv|doc|html)$/i.test(a.pathname)) return;
+    setTimeout(skeleton, 120);
+  });
+
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || e.defaultPrevented) return;
+    if ((form.method || 'get').toLowerCase() !== 'get') return;
+    setTimeout(skeleton, 120);
+  });
+
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { location.reload(); }
+  });
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

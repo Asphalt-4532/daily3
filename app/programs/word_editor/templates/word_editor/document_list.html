@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Documents — Word Editor{% endblock %}
+{% block content %}
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+  <h2 style="margin:0;">All documents</h2>
+  <div class="actions-row">
+    <a href="/word-editor/documents-export.xlsx?status={{ filters.status }}&subject={{ filters.subject }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&q={{ filters.q }}" class="btn ghost small">Export Excel</a>
+    {% if can_create %}<a href="/word-editor/documents/new" class="btn">+ New document</a>{% endif %}
+  </div>
+</div>
+<div class="filters">
+  <form method="get" style="display:contents;">
+    <div><label>Status</label>
+      <select name="status">
+        <option value="" {{ 'selected' if not filters.status }}>All</option>
+        <option value="draft" {{ 'selected' if filters.status == 'draft' }}>Draft</option>
+        <option value="self_approved" {{ 'selected' if filters.status == 'self_approved' }}>Self-approved</option>
+        <option value="official" {{ 'selected' if filters.status == 'official' }}>Official</option>
+      </select>
+    </div>
+    <div><label>From</label><input type="date" name="date_from" value="{{ filters.date_from }}"></div>
+    <div><label>To</label><input type="date" name="date_to" value="{{ filters.date_to }}"></div>
+    <div><label>Subject</label><input type="text" name="subject" value="{{ filters.subject }}" placeholder="keyword…"></div>
+    <div><label>Search text</label><input type="text" name="q" value="{{ filters.q }}" placeholder="anything in the body…"></div>
+    <div style="padding-bottom:2px;"><button type="submit" class="btn secondary small" style="margin-top:18px;">Filter</button></div>
+    {% if filters.status or filters.subject or filters.date_from or filters.date_to or filters.q %}
+    <div style="padding-bottom:2px;"><a href="/word-editor/documents" class="btn ghost small" style="margin-top:18px;">Clear</a></div>
+    {% endif %}
+  </form>
+</div>
+<div class="table-wrap card" style="padding:0;">
+  <table>
+    <tr><th>Doc No</th><th>Subject</th><th>To</th><th>Date</th><th>Status</th><th>By</th><th>Comments</th><th>Actions</th></tr>
+    {% for d in docs %}
+    <tr onclick="window.location='/word-editor/documents/{{ d.id }}{% if d.status == 'draft' %}/edit{% endif %}'" style="cursor:pointer;">
+      <td>{{ d.doc_no or '—' }}</td>
+      <td>{{ d.subject or d.title }}{% if d.you_tagged %} <span class="badge" style="background:#EEEDFE;color:#3C3489;font-size:10px;">tagged</span>{% endif %}</td>
+      <td>{{ d.receiver_name or '—' }}</td>
+      <td>{{ d.last_edited_at[:10] }}</td>
+      <td>
+        {% if d.status == 'draft' %}<span class="badge draft">Draft</span>
+        {% elif d.status == 'self_approved' %}<span class="badge approved">Self-approved</span>
+        {% elif d.status == 'official' %}<span class="badge" style="background:#dcfce7;color:#166534;">Official</span>
+        {% endif %}
+      </td>
+      <td>{{ d.creator_name }}</td>
+      <td>{{ d.comment_count or '—' }}</td>
+      <td style="white-space:nowrap;" onclick="event.stopPropagation()">
+        {% if d.status == 'draft' %}
+          <a href="/word-editor/documents/{{ d.id }}/edit" class="btn ghost small">Edit</a>
+        {% else %}
+          <a href="/word-editor/documents/{{ d.id }}" class="btn secondary small">View</a>
+          <a href="/word-editor/documents/{{ d.id }}/print" class="btn ghost small" target="_blank">Print</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="empty">No documents found. <a href="/word-editor/documents/new">Create one →</a></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

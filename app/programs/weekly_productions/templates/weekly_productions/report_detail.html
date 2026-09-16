@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:900px; margin:0 auto;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2 class="mt-0">{{ r.report_no }}</h2>
+    <span class="badge {{ r.status }}">{{ r.status }}</span>
+  </div>
+  <table>
+    <tr><th>Date</th><td>{{ r.report_date }}</td></tr>
+    <tr><th>Line / Department</th><td>{{ r.line_name }}</td></tr>
+    <tr><th>Shift</th><td>{{ r.shift or '—' }}</td></tr>
+    <tr><th>Recorded by</th><td>{{ r.recorded_by_name }}</td></tr>
+    {% if r.notes %}
+    <tr><th>Notes</th><td>{{ r.notes }}</td></tr>
+    {% endif %}
+    {% if r.status == 'deleted' %}
+    <tr><th>Deleted by</th><td>{{ r.deleted_by_name }} on {{ r.deleted_at }}</td></tr>
+    <tr><th>Delete reason</th><td>{{ r.delete_reason }}</td></tr>
+    {% endif %}
+  </table>
+
+  <h3 style="margin-bottom:8px;">Material lines</h3>
+  {% if r.lines %}
+  <div class="table-wrap">
+  <table>
+    <tr><th>Description</th><th>Material</th><th class="right">Width</th><th class="right">Height</th>
+        <th class="right">Length</th><th class="right">Thickness</th><th class="right">Quantity</th>
+        <th class="right">Weight (kg)</th></tr>
+    {% for line in r.lines %}
+    <tr>
+      <td>{{ line.description or '—' }}</td>
+      <td>{{ line.material_type }}</td>
+      <td class="right">{{ line.width | round(2) }}</td>
+      <td class="right">{{ line.height | round(2) }}</td>
+      <td class="right">{{ line.length | round(2) }}</td>
+      <td class="right">{{ line.thickness | round(2) }}</td>
+      <td class="right">{{ line.quantity | round(2) }}</td>
+      <td class="right">{{ line.weight_kg | round(2) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No material lines.</p>
+  {% endif %}
+  <div style="text-align:right; margin-top:8px; font-size:14px;">
+    <div class="muted">Total quantity: {{ r.total_quantity | round(2) }}</div>
+    <div style="font-weight:bold; font-size:16px; margin-top:2px;">Total weight: {{ r.total_weight | round(2) }} kg</div>
+  </div>
+
+  <div class="actions-row">
+    {% if user.role == 'manager' and r.status != 'deleted' %}
+    <button class="btn danger" type="button" onclick="document.getElementById('deleteBox').style.display='block'">Delete report</button>
+    {% endif %}
+    <a class="btn secondary" href="/weekly-productions/reports">← Back to reports</a>
+  </div>
+
+  {% if user.role == 'manager' and r.status != 'deleted' %}
+  <form method="post" action="/weekly-productions/reports/{{ r.id }}/delete" id="deleteBox" style="display:none; margin-top:14px;"
+        onsubmit="return confirm('Delete {{ r.report_no }}? It will be removed from lists and totals, but kept permanently in the audit log.');">
+    {{ csrf_input(request) | safe }}
+    <label>Reason for deletion (required — recorded in the audit log)</label>
+    <textarea name="reason" required></textarea>
+    <div style="margin-top:8px;">
+      <button class="btn danger" type="submit">Confirm delete</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

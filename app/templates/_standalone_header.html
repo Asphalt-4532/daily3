@@ -1,0 +1,44 @@
+{# Shared top-of-document header for standalone pages that don't extend
+   base.html - just the program hub (programs.html) and its coming-soon
+   placeholder (coming_soon.html), which deliberately skip the full
+   Expense Program nav since a person reaches these before picking a
+   program at all. Expects `page_subtitle` (shown in both <title> and the
+   topbar) already set via {% set %} before this include.
+   A duplication check found this block copied byte-for-byte between the
+   two pages; extracted here once found. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ COMPANY_NAME }} — {{ page_subtitle }}</title>
+<link rel="stylesheet" href="/static/style.css">
+<script>
+/* Density, applied before first paint - same reasoning and same storage key
+   as base.html. Duplicated rather than shared because these two pages
+   deliberately do not extend base.html, and a four-line inline script is a
+   smaller cost than making them. */
+(function () {
+  try {
+    var d = localStorage.getItem('ui_density');
+    if (d === 'compact') { document.documentElement.setAttribute('data-density', 'compact'); }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">{{ COMPANY_NAME }} <small>{{ page_subtitle }}</small></div>
+  <div class="nav">
+    {# The hub is where people land after login, so the bell has to be here
+       too - not only on base.html's nav. #}
+    {% include "_notification_bell.html" %}
+    <span class="who">{{ user.full_name }} · {{ user.role }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</div>
+{# The notification centre travels with the bell - the hub is where people
+   land after login, so the panel has to open here too. #}
+{% include "_notification_drawer.html" %}
+
+<div class="container">

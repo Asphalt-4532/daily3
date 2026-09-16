@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+{% if notifications %}
+<div class="alert danger" style="margin-bottom:14px;">
+  <strong>{{ notifications | length }} budget alert{{ 's' if notifications | length != 1 }}:</strong>
+  {% for n in notifications %}
+  <div style="font-size:13px; margin-top:4px;">
+    {{ n.message }}
+    {% if n.link %}<a href="{{ n.link }}" style="margin-left:6px;">View →</a>{% endif %}
+  </div>
+  {% endfor %}
+  <div style="margin-top:8px;">
+    <a class="btn small secondary" href="/expense-program/budgets">Dismiss (open Budgets page)</a>
+  </div>
+</div>
+{% endif %}
+{% if draft_count %}
+<div class="alert info" style="display:flex; justify-content:space-between; align-items:center;">
+  <span>{{ draft_count }} draft voucher{{ 's' if draft_count != 1 }} waiting to be finished.</span>
+  <a class="btn small secondary" href="/expense-program/expenses?status=draft">View drafts</a>
+</div>
+{% endif %}
+<div class="grid grid-3">
+  <div class="card stat">
+    <div class="num">{{ month_total | money }}</div>
+    <div class="label">Approved this month</div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ pending_count }}</div>
+    <div class="label">Pending vouchers ({{ pending_total | money }})</div>
+  </div>
+  {% if float_balance is not none %}
+  <div class="card stat">
+    <div class="num {% if float_balance < 0 %}danger{% endif %}">{{ float_balance | money }}</div>
+    <div class="label">Cash in box{% if float_balance < 0 %} ⚠ negative{% endif %}</div>
+  </div>
+  {% else %}
+  <div class="card stat">
+    <div class="num muted">—</div>
+    <div class="label">Cash float (not set up)</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 class="mt-0">This month by category</h3>
+    {% set empty_message = "No approved expenses yet this month." %}
+    {% include "expenses/_donut_chart.html" with context %}
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Last 6 months (approved)</h3>
+    {% set max_m = (monthly_trend | map(attribute='total') | max) if monthly_trend else 0 %}
+    {% if not monthly_trend or max_m == 0 %}
+      <div class="empty">Not enough history yet.</div>
+    {% else %}
+      <div style="display:flex; align-items:flex-end; gap:8px; height:150px;">
+        {% for row in monthly_trend %}
+        <div style="flex:1; text-align:center;">
+          <div style="height:120px; display:flex; align-items:flex-end;">
+            <div style="width:100%; background:var(--accent); border-radius:4px 4px 0 0;
+                        height:{{ ((row.total / max_m * 100) | round(1)) if row.total else 0 }}%;"
+                 title="{{ row.total | money }}"></div>
+          </div>
+          <div class="muted" style="font-size:11px; margin-top:4px;">{{ row.ym }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 class="mt-0">Recent vouchers</h3>
+    <a href="/expense-program/expenses">View all →</a>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Voucher</th><th>Date</th><th>Category</th><th>Amount</th><th>Status</th></tr>
+    {% for e in recent %}
+    <tr onclick="window.location='/expense-program/expenses/{{ e.id }}'" style="cursor:pointer;">
+      <td>{{ e.voucher_no }}</td>
+      <td>{{ e.expense_date }}</td>
+      <td>{{ e.category_names or '—' }}{% if e.line_count and e.line_count > 1 %} <span class="muted">({{ e.line_count }})</span>{% endif %}</td>
+      <td>{{ e.total_amount | money }}</td>
+      <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">No vouchers recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

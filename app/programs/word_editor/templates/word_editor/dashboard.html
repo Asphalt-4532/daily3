@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Word Editor — Dashboard{% endblock %}
+{% block content %}
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+
+{% if draft_count %}
+<div class="alert info" style="display:flex; justify-content:space-between; align-items:center;">
+  <span>{{ draft_count }} draft{{ 's' if draft_count != 1 }} waiting to be finished.</span>
+  <a class="btn small secondary" href="/word-editor/documents?status=draft">View drafts</a>
+</div>
+{% endif %}
+
+{% if pending_profile %}
+<div class="alert warn" style="display:flex; justify-content:space-between; align-items:center;">
+  <span>{{ pending_profile | length }} company profile change request{{ 's' if pending_profile|length != 1 }} pending your approval.</span>
+  <a class="btn small secondary" href="/word-editor/profile">Review</a>
+</div>
+{% endif %}
+
+{% if pending_official %}
+<div class="alert info" style="display:flex; justify-content:space-between; align-items:center;">
+  <span>{{ pending_official | length }} document{{ 's' if pending_official|length != 1 }} awaiting official approval.</span>
+  <a class="btn small secondary" href="/word-editor/documents?status=self_approved">Review</a>
+</div>
+{% endif %}
+
+<div class="grid grid-3" style="margin-bottom:18px;">
+  <div class="card stat">
+    <div class="num">{{ recent | length }}</div>
+    <div class="label">Total documents</div>
+  </div>
+  <div class="card stat">
+    <div class="num" style="color:#1d4ed8;">{{ recent | selectattr('status','equalto','self_approved') | list | length }}</div>
+    <div class="label">Self-approved</div>
+  </div>
+  <div class="card stat">
+    <div class="num" style="color:#166534;">{{ recent | selectattr('status','equalto','official') | list | length }}</div>
+    <div class="label">Official</div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+    <h3 style="margin:0;">Templates</h3>
+    <a class="btn small secondary" href="/word-editor/documents/new">+ New document</a>
+  </div>
+
+  {% if universal %}
+  <div style="margin-bottom:10px;">
+    <div style="font-size:12px; color:var(--ink-soft); font-weight:650; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;">Company templates</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px;">
+      {% for t in universal %}
+      <a href="/word-editor/documents/new?template_id={{ t.id }}" style="text-decoration:none;">
+        <div class="card" style="padding:12px; background:#f0fdf4; border-color:#bbf7d0; cursor:pointer; text-align:center;">
+          <div style="font-size:18px; margin-bottom:6px;">🏢</div>
+          <div style="font-size:12px; font-weight:600; color:var(--ink);">{{ t.title }}</div>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:2px;">{{ t.subject or 'No subject' }}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="font-size:12px; color:var(--ink-soft); font-weight:650; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;">Your templates <span style="font-weight:400; font-style:italic;">({{ templates_list | length }}/5)</span></div>
+  <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
+    {% for slot in range(1,6) %}
+    {% set tmpl = templates_list | selectattr('slot','equalto',slot) | first | default(none) %}
+    {% if tmpl %}
+    <div style="background:#fff; border:1px solid var(--line-strong); border-radius:var(--radius); padding:12px 8px; text-align:center; position:relative;">
+      <div style="font-size:18px; margin-bottom:4px;">📄</div>
+      <div style="font-size:11px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tmpl.label or tmpl.subject or 'Template ' ~ slot }}</div>
+      <div style="display:flex; gap:4px; justify-content:center; margin-top:8px;">
+        <a href="/word-editor/documents/new?template_id={{ tmpl.doc_id }}" class="btn small secondary" style="font-size:11px; padding:3px 8px;">Use</a>
+        <form method="post" action="/word-editor/templates/delete" style="display:inline;">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="slot" value="{{ slot }}">
+          <button type="submit" class="btn small danger" style="font-size:11px; padding:3px 8px;" onclick="return confirm('Clear this template slot?')">×</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <a href="/word-editor/documents/new" style="text-decoration:none;">
+      <div style="background:#fafbfc; border:1px dashed var(--line-strong); border-radius:var(--radius); padding:12px 8px; text-align:center; color:var(--ink-faint); min-height:80px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
+        <div style="font-size:20px; opacity:.4;">+</div>
+        <div style="font-size:11px;">Slot {{ slot }}</div>
+      </div>
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <h3 style="margin:0;">Recent documents</h3>
+    <a href="/word-editor/documents">View all →</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Doc No</th><th>Subject</th><th>To</th><th>Date</th><th>Status</th><th>Comments</th></tr>
+      {% for d in recent %}
+      <tr onclick="window.location='/word-editor/documents/{{ d.id }}'" style="cursor:pointer;">
+        <td>{{ d.doc_no or '—' }}</td>
+        <td>{{ d.subject or d.title }}</td>
+        <td>{{ d.receiver_name or '—' }}</td>
+        <td>{{ d.last_edited_at[:10] }}</td>
+        <td>
+          {% if d.status == 'draft' %}<span class="badge draft">Draft</span>
+          {% elif d.status == 'self_approved' %}<span class="badge approved">Self-approved</span>
+          {% elif d.status == 'official' %}<span class="badge" style="background:#dcfce7;color:#166534;">Official</span>
+          {% endif %}
+        </td>
+        <td>{{ d.comment_count or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">No documents yet. <a href="/word-editor/documents/new">Create your first →</a></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+{% if can_official and pending_official %}
+<div class="card">
+  <h3 style="margin-bottom:12px;">Pending official approval</h3>
+  <div class="table-wrap">
+    <table>
+      <tr><th>Doc No</th><th>Subject</th><th>Prepared by</th><th>Self-approved</th><th>Action</th></tr>
+      {% for d in pending_official %}
+      <tr>
+        <td>{{ d.doc_no }}</td>
+        <td>{{ d.subject or d.title }}</td>
+        <td>{{ d.creator_name }}</td>
+        <td>{{ d.self_approved_at[:10] if d.self_approved_at else '—' }}</td>
+        <td>
+          <a href="/word-editor/documents/{{ d.id }}" class="btn small">View / Make official</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}v{{ version.version_no }} — {{ doc.doc_no or doc.subject }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+  <div>
+    <h2 style="margin:0;">Version {{ version.version_no }}{% if version.is_snapshot %} — official snapshot{% endif %}</h2>
+    <span class="muted small">Saved {{ version.created_at[:16] }} by {{ version.edited_by_name }} · sha256 {{ version.content_sha[:24] }}</span>
+  </div>
+  <a class="btn ghost small" href="/word-editor/documents/{{ doc.id }}/history">← All versions</a>
+</div>
+<div class="card" style="padding:24px 28px;line-height:1.8;">{{ version.content_json | safe }}</div>
+{% endblock %}

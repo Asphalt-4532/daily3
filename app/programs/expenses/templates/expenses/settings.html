@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid grid-2">
+  <div class="card" id="categories">
+    <h3 class="mt-0">Expense categories</h3>
+    <table>
+      <tr><th>Name</th><th>GL Code</th><th>Status</th><th></th></tr>
+      {% for c in categories %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>
+          <form method="post" action="/expense-program/settings/categories/{{ c.id }}/gl-code"
+                style="display:flex; gap:4px; align-items:center;">
+            {{ csrf_input(request) | safe }}
+            <input type="text" name="gl_code" value="{{ c.gl_code or '' }}"
+                   placeholder="e.g. 6100" style="width:90px; padding:3px 6px; font-size:12px;">
+            <button class="btn small secondary" type="submit">Save</button>
+          </form>
+        </td>
+        <td>{{ 'Active' if c.active else 'Disabled' }}</td>
+        <td>
+          <form method="post" action="/expense-program/settings/categories/{{ c.id }}/toggle" style="display:inline;">
+            {{ csrf_input(request) | safe }}
+            <button class="btn small secondary" type="submit">{{ 'Disable' if c.active else 'Enable' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <form method="post" action="/expense-program/settings/categories/new" style="margin-top:14px;">
+      {{ csrf_input(request) | safe }}
+      <label>New category name</label>
+      <input type="text" name="name" required>
+      <div style="margin-top:8px;"><button class="btn small" type="submit">Add category</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="mt-0">Cost centres / departments</h3>
+    <table>
+      <tr><th>Code</th><th>Name</th><th>Status</th><th></th></tr>
+      {% for cc in cost_centers %}
+      <tr>
+        <td>{{ cc.code }}</td>
+        <td>{{ cc.name }}</td>
+        <td>{{ 'Active' if cc.active else 'Disabled' }}</td>
+        <td>
+          <form method="post" action="/expense-program/settings/cost-centers/{{ cc.id }}/toggle" style="display:inline;">
+            {{ csrf_input(request) | safe }}
+            <button class="btn small secondary" type="submit">{{ 'Disable' if cc.active else 'Enable' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <form method="post" action="/expense-program/settings/cost-centers/new" style="margin-top:14px;">
+      {{ csrf_input(request) | safe }}
+      <div class="row">
+        <div>
+          <label>Code</label>
+          <input type="text" name="code" placeholder="e.g. TRANSPORT" required>
+        </div>
+        <div>
+          <label>Name</label>
+          <input type="text" name="name" placeholder="e.g. Transport / Vehicles" required>
+        </div>
+      </div>
+      <div style="margin-top:8px;"><button class="btn small" type="submit">Add cost centre</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card" id="period-lock">
+  <h3 class="mt-0">Period close / month lock</h3>
+  <p class="muted" style="margin-top:-6px;">
+    A locked month blocks <strong>new</strong> vouchers dated in it. Existing vouchers can still be
+    approved, rejected, or deleted through the normal flow.
+  </p>
+  <form method="post" action="/expense-program/settings/period-lock/lock"
+        style="display:flex; gap:8px; align-items:flex-end; margin-bottom:14px;">
+    {{ csrf_input(request) | safe }}
+    <div>
+      <label>Lock month</label>
+      <input type="month" name="month" required>
+    </div>
+    <div><button class="btn small danger" type="submit">Lock</button></div>
+  </form>
+
+  {% if not locked_months %}
+  <p class="muted">No months locked.</p>
+  {% else %}
+  <table>
+    <tr><th>Month</th><th>Locked by</th><th>Locked at</th><th></th></tr>
+    {% for lm in locked_months %}
+    <tr>
+      <td><strong>{{ lm.month }}</strong></td>
+      <td>{{ lm.locked_by_name }}</td>
+      <td class="muted small">{{ lm.locked_at }}</td>
+      <td>
+        <form method="post" action="/expense-program/settings/period-lock/unlock"
+              onsubmit="return confirm('Unlock {{ lm.month }}? Users will be able to back-date new vouchers into it.');">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="month" value="{{ lm.month }}">
+          <button class="btn small secondary" type="submit">Unlock</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+<div class="card" id="duplicates">
+  <h3 class="mt-0">Data integrity — duplicate transaction lines</h3>
+  <p class="muted" style="margin-top:-6px;">Two or more lines on the same voucher with identical category,
+    particulars, amount, and VAT status — usually an accidental double-entry, but not always (two genuinely
+    separate purchases can look identical). Review each one before removing it.</p>
+
+  {% if not duplicate_groups %}
+  <p class="muted">No duplicate transaction lines found.</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <tr><th>Voucher</th><th>Category</th><th>Particulars</th><th class="right">Amount</th><th>VAT?</th>
+        <th>Copies</th><th></th></tr>
+    {% for g in duplicate_groups %}
+    <tr>
+      <td>
+        {{ g.voucher_no or 'Draft' }}
+        <span class="muted small">— {{ g.paid_to or '(no payee yet)' }}, {{ g.expense_date }}</span><br>
+        <span class="badge {{ g.status }}">{{ g.status }}</span>
+      </td>
+      <td>{{ g.category_name }}</td>
+      <td>{{ g.particulars }}</td>
+      <td class="right">{{ g.amount | money }}</td>
+      <td>{{ 'Yes' if g.is_vatable else 'No' }}</td>
+      <td>{{ g.count }}</td>
+      <td>
+        {% if g.is_draft %}
+        <form method="post" action="/expense-program/settings/duplicates/clean"
+              onsubmit="return confirm('Keep one copy and remove the other {{ g.count - 1 }}? This can\'t be undone.');">
+          {{ csrf_input(request) | safe }}
+          <input type="hidden" name="expense_id" value="{{ g.expense_id }}">
+          <input type="hidden" name="category_id" value="{{ g.category_id }}">
+          <input type="hidden" name="particulars" value="{{ g.particulars }}">
+          <input type="hidden" name="amount" value="{{ g.amount }}">
+          <input type="hidden" name="is_vatable" value="{{ 1 if g.is_vatable else 0 }}">
+          <button class="btn small danger" type="submit">Keep 1, remove rest</button>
+        </form>
+        {% else %}
+        <span class="muted small">Submitted — reject/delete &amp; resubmit to correct</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" id="suppliers">
+  <h3 class="mt-0">Suppliers (VAT knowledge base)</h3>
+  <p class="muted" style="margin-top:-6px;">Filled in automatically the first time a name/VAT pair is used on a
+    VAT-able transaction line — nothing to add here manually. Deleting one only removes it from the picker
+    offered for <b>new</b> lines; every voucher line that already references it keeps showing exactly what it
+    always did.</p>
+
+  <form method="get" action="/expense-program/settings#suppliers" class="filters">
+    <div>
+      <label>Status</label>
+      <select name="supplier_status">
+        <option value="active" {{ 'selected' if supplier_filters.status == 'active' }}>Active</option>
+        <option value="" {{ 'selected' if not supplier_filters.status }}>All</option>
+        <option value="deleted" {{ 'selected' if supplier_filters.status == 'deleted' }}>Deleted</option>
+      </select>
+    </div>
+    <div>
+      <label>Search by VAT number</label>
+      <input type="text" name="supplier_search" value="{{ supplier_filters.search }}" placeholder="e.g. 1002345">
+    </div>
+    <div style="min-width:auto;">
+      <button class="btn secondary" type="submit">Filter</button>
+    </div>
+  </form>
+
+  {% if not suppliers %}
+  <p class="muted">No suppliers match these filters.</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <tr><th>Name</th><th>VAT number</th><th>Status</th><th>Used on</th><th>Added by</th><th></th></tr>
+    {% for s in suppliers %}
+    <tr>
+      <td>{{ s.name }}</td>
+      <td>{{ s.vat_number }}</td>
+      <td><span class="badge {{ s.status }}">{{ s.status }}</span></td>
+      <td>{{ s.usage_count }} line{{ '' if s.usage_count == 1 else 's' }}</td>
+      <td>{{ s.created_by_name }}, {{ s.created_at }}</td>
+      <td>
+        {% if s.status != 'deleted' and user.role == 'manager' %}
+        <button class="btn small danger" type="button"
+                onclick="document.getElementById('del-supplier-{{ s.id }}').style.display='flex'">Delete</button>
+        <form method="post" action="/expense-program/settings/suppliers/{{ s.id }}/delete"
+              id="del-supplier-{{ s.id }}" style="display:none; gap:6px; margin-top:6px;"
+              onsubmit="return confirm('Delete {{ s.name }}? Existing voucher lines keep showing it unchanged.');">
+          {{ csrf_input(request) | safe }}
+          <input type="text" name="reason" placeholder="Reason (required)" required style="width:160px;">
+          <button class="btn small danger" type="submit">Confirm</button>
+        </form>
+        {% elif s.status == 'deleted' %}
+        <span class="muted small" title="{{ s.delete_reason }}">by {{ s.deleted_by_name }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

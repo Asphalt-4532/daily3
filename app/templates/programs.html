@@ -1,0 +1,23 @@
+{% set page_subtitle = "Choose a program" %}
+{% include "_standalone_header.html" %}
+  <div class="card">
+    <h2 class="mt-0">Choose a program</h2>
+    <p class="muted" style="margin-top:-6px;">More programs will appear here over time.</p>
+  </div>
+
+  <div class="grid grid-2">
+    {% for p in programs %}
+    <div class="card">
+      <h3 style="margin-bottom:4px;">{{ p.name }}</h3>
+      <p class="muted" style="margin-top:0;">{{ p.description }}</p>
+      {% if p.available %}
+      <a class="btn" href="{{ p.url }}">Open</a>
+      {% else %}
+      <a class="btn secondary" href="/programs/coming-soon?key={{ p.key }}">Coming in the future</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Editor — Setup</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card" style="max-width:520px;">
+    <h1 style="text-align:center; margin-bottom:4px;">Word Editor</h1>
+    <p class="sub">One-time company setup</p>
+    <p class="addr">This information appears on every printed document. Future changes require manager approval.</p>
+
+    {% if flash %}
+    <div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {{ csrf_input(request) | safe }}
+
+      <div style="border:2px dashed var(--line-strong); border-radius:var(--radius); padding:16px; text-align:center; margin-bottom:4px; cursor:pointer;" onclick="document.getElementById('logoInput').click()">
+        <div id="logo-placeholder">
+          <div style="font-size:24px; color:var(--ink-faint);">🖼</div>
+          <div style="font-size:13px; color:var(--ink-soft); margin-top:4px;">Click to upload company logo (optional)</div>
+          <div style="font-size:11px; color:var(--ink-faint);">JPG, PNG, WEBP · auto-resized to 160×80 px</div>
+        </div>
+        <div id="logo-loaded" style="display:none;">
+          <div style="font-size:13px; color:var(--brand);">✓ Logo selected — click to change</div>
+        </div>
+      </div>
+      <input type="file" id="logoInput" name="logo" accept=".jpg,.jpeg,.png,.webp" style="display:none" onchange="document.getElementById('logo-placeholder').style.display='none'; document.getElementById('logo-loaded').style.display='block';">
+
+      <div class="row">
+        <div><label>Company Name *</label><input type="text" name="company_name" required placeholder="Al-Mulhim Industrial Co."></div>
+        <div><label>Your Phone *</label><input type="text" name="phone" required placeholder="055 448 0865"></div>
+      </div>
+      <div class="row">
+        <div><label>Your Document Location *</label><input type="text" name="document_location" required placeholder="Factory Floor, Admin Office…"></div>
+        <div><label>Company Website *</label><input type="text" name="website" required placeholder="www.company.com.sa"></div>
+      </div>
+
+      <hr style="margin:16px 0;">
+      <p style="font-size:12px; color:var(--ink-soft); margin-bottom:8px;">These appear in the footer of every printed document:</p>
+
+      <div class="row">
+        <div><label>Company Location (footer address) *</label><input type="text" name="company_location" required placeholder="381 Mulhim Street, Malham, Huraymila, K.S.A"></div>
+      </div>
+      <div class="row">
+        <div><label>Company Phone (footer) *</label><input type="text" name="company_phone" required placeholder="0554480865"></div>
+      </div>
+
+      <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+        <button type="submit" class="btn">Save and continue →</button>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

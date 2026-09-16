@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2 class="mt-0">Expenses</h2>
+  <form method="get" class="filters">
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="" {{ 'selected' if not filters.status }}>All</option>
+        <option value="draft" {{ 'selected' if filters.status == 'draft' }}>Draft</option>
+        <option value="pending" {{ 'selected' if filters.status == 'pending' }}>Pending</option>
+        <option value="approved" {{ 'selected' if filters.status == 'approved' }}>Approved</option>
+        <option value="rejected" {{ 'selected' if filters.status == 'rejected' }}>Rejected</option>
+        {% if user.role == 'manager' %}
+        <option value="deleted" {{ 'selected' if filters.status == 'deleted' }}>Deleted</option>
+        {% endif %}
+      </select>
+    </div>
+    <div>
+      <label>Category</label>
+      <select name="category_id">
+        <option value="">All</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}" {{ 'selected' if filters.category_id|string == c.id|string }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Cost centre</label>
+      <select name="cost_center_id">
+        <option value="">All</option>
+        {% for cc in cost_centers %}
+        <option value="{{ cc.id }}" {{ 'selected' if filters.cost_center_id|string == cc.id|string }}>{{ cc.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>From</label>
+      <input type="date" name="start" value="{{ filters.start }}">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" name="end" value="{{ filters.end }}">
+    </div>
+    <div style="min-width:auto;">
+      <button class="btn secondary" type="submit">Filter</button>
+    </div>
+  </form>
+
+  {% set qs = {'status': filters.status, 'category_id': filters.category_id,
+               'cost_center_id': filters.cost_center_id, 'start': filters.start,
+               'end': filters.end} | urlencode %}
+  <div class="actions-row" style="margin-top:-4px; margin-bottom:14px;">
+    <a class="btn small secondary" href="/expense-program/expenses/export.xlsx?{{ qs }}">Download Excel</a>
+    <a class="btn small secondary" href="/expense-program/expenses/export.pdf?{{ qs }}">Download PDF</a>
+  </div>
+
+  {# Selection checkboxes and the floating bulk toolbar.
+
+     The whole table sits inside one form so the selected ids post together.
+     A row's own click-to-open is kept, but the checkbox cell stops the
+     click from bubbling - otherwise ticking a box would navigate away from
+     the list you are trying to select on.
+
+     The toolbar itself is revealed by script. Without JavaScript the
+     checkboxes and the three buttons are still there and still work (they
+     are a plain form), they simply do not float - which is a cosmetic
+     difference, not a missing feature. #}
+  {% set can_review = user.role in ['manager', 'accountant'] %}
+  {% set can_delete = user.role == 'manager' %}
+  {% set show_bulk = can_review or can_delete %}
+
+  <form method="post" action="/expense-program/expenses/bulk" data-bulk-form>
+  {{ csrf_input(request) | safe }}
+  <div class="table-wrap">
+  <table>
+    <tr>
+      {% if show_bulk %}
+      <th class="pick-col">
+        <input type="checkbox" data-bulk-all aria-label="Select all rows">
+      </th>
+      {% endif %}
+      <th>Voucher</th><th>Date</th><th>Category</th><th>Paid to</th><th>Cost centre</th><th class="right">Amount</th><th>Status</th>
+    </tr>
+    {% for e in expenses %}
+    <tr onclick="window.location='/expense-program/expenses/{{ e.id }}'" style="cursor:pointer;">
+      {% if show_bulk %}
+      <td class="pick-col" onclick="event.stopPropagation();" data-label="Select">
+        {# Only pending vouchers can be approved or rejected, and only a
+           non-deleted one can be deleted - so anything else is not
+           selectable at all. Better to have no checkbox than a checkbox
+           whose result is always "skipped". #}
+        {% if e.status == 'pending' or (can_delete and e.status in ['approved', 'rejected']) %}
+        <input type="checkbox" name="expense_ids" value="{{ e.id }}"
+               data-bulk-row data-status="{{ e.status }}"
+               aria-label="Select voucher {{ e.voucher_no or e.id }}">
+        {% endif %}
+      </td>
+      {% endif %}
+      <td data-label="Voucher">{{ e.voucher_no or 'Draft' }}</td>
+      <td data-label="Date">{{ e.expense_date }}</td>
+      <td data-label="Category">{{ e.category_names or '—' }}{% if e.line_count and e.line_count > 1 %} <span class="muted">({{ e.line_count }} items)</span>{% endif %}</td>
+      <td data-label="Paid to">{{ e.paid_to }}</td>
+      <td data-label="Cost centre">{{ e.cost_center_name or '—' }}</td>
+      <td class="right" data-label="Amount">{{ e.total_amount | money }}</td>
+      <td data-label="Status"><span class="badge {{ e.status }}">{{ e.status }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ 8 if show_bulk else 7 }}" class="empty">No expenses match these filters.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  {% if show_bulk %}
+  <div class="bulk-bar" data-bulk-bar hidden>
+    <span class="bulk-count"><strong data-bulk-n>0</strong> selected</span>
+    <input type="text" name="bulk_reason" class="bulk-reason"
+           placeholder="Reason (required to reject or delete)">
+    {% if can_review %}
+    <button class="btn small" type="submit" name="bulk_action" value="approve">Approve</button>
+    <button class="btn small secondary" type="submit" name="bulk_action" value="reject">Reject</button>
+    {% endif %}
+    {% if can_delete %}
+    <button class="btn small danger" type="submit" name="bulk_action" value="delete">Delete</button>
+    {% endif %}
+    <button type="button" class="linkish small" data-bulk-clear>Clear</button>
+  </div>
+  {% endif %}
+  </form>
+
+  <div class="right" style="margin-top:10px; font-weight:700;">
+    Total: {{ total | money }}
+  </div>
+</div>
+
+{% if show_bulk %}
+<script>
+/* Bulk selection toolbar.
+
+   Purely a convenience layer: every id it posts is re-checked server-side
+   against the same rules the single-voucher routes enforce (see
+   expenses.py's bulk_* functions), so nothing here is a permission
+   decision - it only decides what to show. */
+(function () {
+  var form = document.querySelector('[data-bulk-form]');
+  if (!form) return;
+  var bar = form.querySelector('[data-bulk-bar]');
+  var count = form.querySelector('[data-bulk-n]');
+  var all = form.querySelector('[data-bulk-all]');
+  var clear = form.querySelector('[data-bulk-clear]');
+
+  function rows() {
+    return Array.prototype.slice.call(form.querySelectorAll('[data-bulk-row]'));
+  }
+  function selected() {
+    return rows().filter(function (c) { return c.checked; });
+  }
+  function sync() {
+    var n = selected().length;
+    if (count) count.textContent = n;
+    if (bar) bar.hidden = n === 0;
+    if (all) {
+      var total = rows().length;
+      all.checked = total > 0 && n === total;
+      all.indeterminate = n > 0 && n < total;
+    }
+  }
+
+  form.addEventListener('change', function (e) {
+    if (e.target === all) {
+      rows().forEach(function (c) { c.checked = all.checked; });
+    }
+    sync();
+  });
+  if (clear) {
+    clear.addEventListener('click', function () {
+      rows().forEach(function (c) { c.checked = false; });
+      if (all) all.checked = false;
+      sync();
+    });
+  }
+
+  /* Reject and delete need a reason; say so here rather than making the
+     round trip just to be told. Approve does not. */
+  form.addEventListener('submit', function (e) {
+    var btn = e.submitter;
+    if (!btn || !btn.value) return;
+    if (btn.value === 'reject' || btn.value === 'delete') {
+      var reason = form.querySelector('.bulk-reason');
+      if (reason && !reason.value.trim()) {
+        e.preventDefault();
+        reason.focus();
+        reason.classList.add('is-missing');
+      }
+    }
+  });
+
+  sync();
+})();
+</script>
+{% endif %}
+{% endblock %}

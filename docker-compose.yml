@@ -1,0 +1,59 @@
+services:
+  petty-cash:
+    build: .
+    container_name: petty_cash_system
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    # Sandboxing: the container can only write to /app/data (your voucher
+    # data) and /tmp (scratch space for backups/restores in progress).
+    # Everything else - the app code, Python itself, the OS - is read-only
+    # at runtime, so nothing running inside the container can modify it.
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Drop every Linux capability the container isn't using. A plain Python
+    # web app binding to a non-privileged port (8000) needs none of them.
+    cap_drop:
+      - ALL
+    # Blocks a process from gaining more privileges than it started with
+    # (e.g. via a setuid binary) - irrelevant for this app's own code, but
+    # a real backstop if a dependency is ever compromised.
+    security_opt:
+      - no-new-privileges:true
+    # Resource limits: a runaway process (or an attacker who got code
+    # execution some other way) can't exhaust the host.
+    mem_limit: 512m
+    cpus: "1.0"
+
+  # Optional: exposes this app to the internet via a Cloudflare Tunnel,
+  # without opening any inbound port on your router. Off by default - only
+  # starts when you explicitly ask for the "cloudflare" profile:
+  #   docker compose --profile cloudflare up -d
+  # Requires CLOUDFLARE_TUNNEL_TOKEN in .env - see the README section on
+  # this for how to create a tunnel and get that token. This container
+  # only ever makes outbound connections to Cloudflare; it never needs to
+  # bind to a port itself, so read_only/cap_drop are safe here too.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: petty_cash_cloudflared
+    restart: unless-stopped
+    profiles: ["cloudflare"]
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - petty-cash
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: "0.5"

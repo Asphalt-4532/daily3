@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Universal Templates — Word Editor{% endblock %}
+{% block content %}
+{% if flash %}
+<div class="alert {{ flash.kind }}">{{ flash.msg }}</div>
+{% endif %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">Universal templates</h2>
+    <span class="muted small">{{ templates_list | length }}/2 used · Assigned users see these as read-only company templates.</span>
+  </div>
+  {% if templates_list | length < 2 %}
+  <button class="btn" onclick="document.getElementById('createModal').style.display='flex'">+ Create universal template</button>
+  {% else %}
+  <span class="muted small" style="color:var(--bad);">Limit of 2 reached.</span>
+  {% endif %}
+</div>
+
+{% for t in templates_list %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+    <div>
+      <h3 style="margin:0;">{{ t.title }}</h3>
+      <span class="muted small">{{ t.subject or 'No subject' }} · {{ t.assigned_count }} user{{ 's' if t.assigned_count != 1 }} assigned</span>
+    </div>
+    <div class="actions-row">
+      <button class="btn secondary small" onclick="openAssign({{ t.id }}, {{ t.title | tojson }})">Manage users</button>
+      <form method="post" action="/word-editor/universal-templates/{{ t.id }}/delete" style="display:inline;"
+            onsubmit="return confirm('Delete this universal template?')">
+        {{ csrf_input(request) | safe }}
+        <button type="submit" class="btn danger small">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card empty">No universal templates yet.</div>
+{% endfor %}
+
+<hr>
+<h3 style="margin-bottom:12px;">Universal subjects</h3>
+<div class="card" style="padding:14px 20px;">
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    {% for s in universal_subjects %}
+    <span class="badge approved">🏢 {{ s.subject }}</span>
+    {% else %}
+    <span class="muted small">No universal subjects yet.</span>
+    {% endfor %}
+  </div>
+  <form method="post" action="/word-editor/universal-templates/subjects/create" style="display:flex;gap:8px;align-items:flex-end;">
+    {{ csrf_input(request) | safe }}
+    <div style="flex:1;"><label>New universal subject</label><input type="text" name="subject" placeholder="e.g. Weekly Safety Inspection"></div>
+    <button type="submit" class="btn secondary small" style="margin-bottom:2px;">Add</button>
+  </form>
+</div>
+
+<!-- Create modal -->
+<div id="createModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px;width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <h3 style="margin-bottom:16px;">Create universal template</h3>
+    <form method="post" action="/word-editor/universal-templates/create">
+      {{ csrf_input(request) | safe }}
+      <label>Template title *</label>
+      <input type="text" name="title" required placeholder="e.g. Weekly Safety Report">
+      <label>Default subject</label>
+      <input type="text" name="subject" placeholder="e.g. Weekly Safety Inspection — [Location]">
+      <label>Template content</label>
+      <textarea name="content_html" rows="6" placeholder="Enter default content for this template…" style="font-size:13px;"></textarea>
+      <label style="margin-top:14px;">Assign to users</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius);padding:8px;">
+        {% for u in all_users %}
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;letter-spacing:0;cursor:pointer;font-weight:400;">
+          <input type="checkbox" name="user_ids" value="{{ u.id }}" style="width:auto;"> {{ u.display_name }} <span class="muted small">({{ u.role }})</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+        <button type="button" class="btn secondary" onclick="document.getElementById('createModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn">Create template</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Assign users modal -->
+<div id="assignModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:var(--radius-lg);padding:28px;width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <h3 id="assignTitle" style="margin-bottom:16px;">Assign users</h3>
+    <form method="post" id="assignForm">
+      {{ csrf_input(request) | safe }}
+      <div id="assignCheckboxes" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius);padding:8px;">
+        {% for u in all_users %}
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;letter-spacing:0;cursor:pointer;font-weight:400;">
+          <input type="checkbox" name="user_ids" value="{{ u.id }}" class="assign-user-chk" style="width:auto;"> {{ u.display_name }}
+        </label>
+        {% endfor %}
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button type="button" class="btn secondary" onclick="document.getElementById('assignModal').style.display='none'">Cancel</button>
+        <button type="submit" class="btn">Save assignments</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openAssign(tid, title){
+  document.getElementById('assignTitle').textContent='Assign: '+title;
+  document.getElementById('assignForm').action='/word-editor/universal-templates/'+tid+'/assign';
+  document.getElementById('assignModal').style.display='flex';
+}
+</script>
+{% endblock %}
